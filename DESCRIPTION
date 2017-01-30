@@ -1,0 +1,32 @@
+Package: ImmSigPkg
+Type: Package
+Title: Run HIPC ImmuneSignatures Pipeline from ImmuneSpace data
+Version: 0.1.0
+Author: HIPC ImmuneSignatures collaborators
+Maintainer: Evan Henrich <ehenrich@fredhutch.org>
+Description: This package allows the user to run the full HIPC ImmuneSignatures
+    analysis pipeline
+License: What license is it under?
+Encoding: UTF-8
+LazyData: true
+Import: ImmuneSpaceR,
+    XML,
+    xml2,
+    R.utils,
+    Rlabkey,
+    tools,
+    plyr,
+    dplyr,
+    httr,
+    stringr,
+    data.table,
+    hash,
+    qusage,
+    knitr,
+    biobase,
+    illuminaHumanv4.db,
+    hugene10sttranscriptcluster.db,
+    hgu133plus2.db,
+    DESeq,
+    preprocessCore
+RoxygenNote: 5.0.1
