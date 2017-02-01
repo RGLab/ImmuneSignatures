@@ -107,7 +107,7 @@ hipc_meta_analysis <- function(rds_dir, cohort, orig_params = T, output_dir){
 #' @importFrom XML xmlToList xmlParse
 #' @importFrom plyr ldply
 #' @import dplyr
-#' @importFrom httr GET
+#' @importFrom httr GET authenticate
 #' @importFrom stringr str_sub str_match str_trim
 #' @importFrom data.table fread
 #' @importFrom hash hash has.key
