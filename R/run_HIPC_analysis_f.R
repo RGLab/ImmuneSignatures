@@ -3,30 +3,6 @@
 # Gottardo Lab - Fred Hutchinson Cancer Research Center
 # January 2017
 
-#*****************SETUP*************************************
-# Depdendencies
-library(ImmuneSpaceR) # GE, HAI, DEMO
-library(XML) # GE
-library(xml2) # GE
-library(R.utils) # GE
-library(Rlabkey) # GE
-library(tools) # GE
-library(plyr) # Datasets *** MUST LOAD BEFORE dplyr TO AVOID CONFLICTS IN makeHAI() ******
-library(dplyr) # GE, HAI, Datasets
-library(httr) # GE
-library(stringr) # Datasets, #getSDY
-library(data.table) # GE
-library(hash) # GE, HAI, DEMO
-library(preprocessCore) # GE
-library(GEOquery) # GE
-library(qusage) # MetaAnalysis
-library(knitr) # Datasets
-library(Biobase) # Datasets, getSDY
-library(hgu133plus2.db) # Datasets
-library(DESeq) # Datasets
-library(illuminaHumanv4.db) # GE, Datasets
-library(hugene10sttranscriptcluster.db) # GE, Datasets
-
 #----------------------HELPER METHODS--------------------------------------
 #' Generates TSV text tables for use in the hipc pipeline from ImmuneSpace data
 #'
@@ -127,6 +103,23 @@ hipc_meta_analysis <- function(rds_dir, cohort, orig_params = T, output_dir){
 
 #----------------MAIN METHOD-----------------------------------------
 #' Runs full pipeline from start to finish with user input required at certain points
+#' @importFrom xml2 read_html
+#' @importFrom XML xmlToList xmlParse
+#' @importFrom plyr ldply
+#' @import dplyr
+#' @importFrom httr GET
+#' @importFrom stringr str_sub str_match str_trim
+#' @importFrom data.table fread
+#' @importFrom hash hash has.key
+#' @importFrom preprocessCore normalize.quantiles
+#' @importFrom GEOquery gunzip
+#' @import qusage
+#' @import knitr
+#' @import Biobase
+#' @import hgu133plus2.db
+#' @import DESeq
+#' @import illuminaHumanv4.db
+#' @import hugene10sttranscriptcluster.db
 #'
 #' @return text and pdf files wtih significant gene pathways
 #' @export

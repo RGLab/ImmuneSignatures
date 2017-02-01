@@ -9,11 +9,9 @@ Description: This package allows the user to run the full HIPC ImmuneSignatures
 License: What license is it under?
 Encoding: UTF-8
 LazyData: true
-Import: ImmuneSpaceR,
-    XML,
+Depends: ImmuneSpaceR
+Imports: XML,
     xml2,
-    R.utils,
-    Rlabkey,
     tools,
     plyr,
     dplyr,
@@ -23,7 +21,7 @@ Import: ImmuneSpaceR,
     hash,
     qusage,
     knitr,
-    biobase,
+    Biobase,
     illuminaHumanv4.db,
     hugene10sttranscriptcluster.db,
     hgu133plus2.db,

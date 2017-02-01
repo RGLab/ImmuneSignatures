@@ -65,6 +65,9 @@ combine_hai_data <- function(hai_dir, output_dir){
                             recursive = TRUE,
                             full.names = TRUE))
 
+  # for temp purposes:
+  file_list <- c(file_list, "PreProc_Data/HAI/CHI-nih_combined_hai_titer_table.txt")
+
   message("************* MAKING COMBINED HAI RDS ************************")
 
   sdy_list <- str_match(basename(file_list), "^((CHI)|(SDY[0-9]+))-?[^_]*")
@@ -72,7 +75,9 @@ combine_hai_data <- function(hai_dir, output_dir){
 
     # extract info from filename: SDY, cohort, mfc titer base
     m <- str_match(basename(d), "(((CHI)|(SDY[0-9]+))-?([^_]*))_((combined)|(young)|(old))?_?hai")
-    sdy <- unique(m[, 3L]); cohort <- unique(m[, 6L]); mfc_base <- m[, 7L]
+    sdy <- unique(m[, 3L])
+    cohort <- unique(m[, 6L])
+    mfc_base <- m[, 7L]
     if( nzchar(cohort) ){
       cohort <- sprintf("%s-%s", sdy, str_trim(gsub("[-_)(]", "", cohort)))
     }else{
@@ -87,10 +92,18 @@ combine_hai_data <- function(hai_dir, output_dir){
     res <- lapply(seq_along(f), function(i){
       f <- f[i]
       message("    -> Processing ", mfc_base[i], ": ", basename(f))
-      hai <- read.table(f, header = TRUE, sep = "\t", row.names = 1L)
+
+      # NTS: Edit back to no conditional once CHI hai sorted out
+      if(sdy != "CHI"){
+        hai <- read.table(f, header = TRUE, sep = "\t", row.names = 1L)
+      }else{
+        hai <- as.data.frame(orig_chi_hai)
+        rownames(hai) <- hai$subject
+      }
+
       subjects <<- unique(c(subjects, rownames(hai)))
       col <- grep("_max", colnames(hai))
-      res <- hai[,col,drop = FALSE]
+      res <- hai[ , col, drop = FALSE]
       # flag with mfc base if necessary -- and rename/flag
       if( nzchar(mfc_base[i]) && mfc_base[i] != 'combined' ){
         colnames(res) <- paste0(mfc_base[i], "_", colnames(res))
@@ -143,7 +156,14 @@ make_rds <- function(sdy, ge_dir, combined_hai, output_dir){
   }
 
   # expression data
-  e <- read.table(ge_file, sep = "\t", header = TRUE)
+  if(sdy == "SDY80"){
+    e <- as.data.frame(orig_chi_GE)
+  }else if(sdy == "SDY400"){
+    e <- as.data.frame(orig_400_GE)
+  }else{
+    e <- read.table(ge_file, sep = "\t", header = TRUE)
+  }
+
   fdata <- e[, 1:2]
   e <- as.matrix(e[, -(1:2)])
   rownames(e) <- as.character(fdata[, 1L])
@@ -183,7 +203,23 @@ make_rds <- function(sdy, ge_dir, combined_hai, output_dir){
   eset$Condition <- factor(m[, 7L])
 
   if( file.exists(pfile <- gsub("GEMatrix", "demographics", ge_file, fixed = TRUE)) ){
+    # NTS: edit / remove conditional when CHI is updated
     p <- read.table(pfile, sep = "\t", header = TRUE)
+    p_subjectID <- as.character(p[, 1L])
+    with_annot <- subjectID %in% p_subjectID
+    message(sprintf("    - %s samples | %s/%s with annotation [%s available subjects]",
+                    ncol(eset), sum(with_annot), ncol(eset), nrow(p)))
+    if( !all(with_annot) ){
+      stop("Missing sample annotation for ", paste0(sampleNames(eset)[!with_annot], collapse = ", "))
+    }
+    p <- p[match(subjectID, p_subjectID), ]
+    # unifromise
+    names(p) <- capwords(names(p))
+    p <- cbind(pData(eset), p)
+    rownames(p) <- sampleNames(eset)
+    pData(eset) <- droplevels(p)
+  }else if(sdy == "SDY80" | sdy == "CHI-nih"){
+    p <- orig_chi_demo
     p_subjectID <- as.character(p[, 1L])
     with_annot <- subjectID %in% p_subjectID
     message(sprintf("    - %s samples | %s/%s with annotation [%s available subjects]",

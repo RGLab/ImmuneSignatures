@@ -6,10 +6,10 @@
 
 # PURPOSE: generate HAI tables for downstream HIPC Gene Module Analysis using raw data from Immunespace
 
-# NOTES: The original code to perform these operations was developed by Yuri Kotliarov at 
-# NIH (yuri.kotliarov@nih.gov).  This version was developed to provide the same functionality as 
-# the original in terms of statistical operation, but use data pulled directly from the ImmuneSpace 
-# portal at www.immunespace.org instead of data shared among the collaborating labs via a google 
+# NOTES: The original code to perform these operations was developed by Yuri Kotliarov at
+# NIH (yuri.kotliarov@nih.gov).  This version was developed to provide the same functionality as
+# the original in terms of statistical operation, but use data pulled directly from the ImmuneSpace
+# portal at www.immunespace.org instead of data shared among the collaborating labs via a google
 # drive and also to handle all the studies used in the meta-analysis in an automated format.
 
 #***************TESTING ONLY*********************************
@@ -66,7 +66,7 @@ max_select <- function(subid,trg_col){
 
 # Method by Yuri Kotliarov to categorize an observation based on low and high percentiles
 # Changed slightly to round fc_res_max values to 7 digits prior to comparison with quantile
-# values which are interpolated and therefore can throw off assignment if intention is to 
+# values which are interpolated and therefore can throw off assignment if intention is to
 # use them as if they are nearest order statistic (similar to type = 3 in quantiles args).
 discretize <- function(df, input_col, low_perc, sdy, name){
   xq <- quantile(df[[input_col]],
@@ -141,11 +141,11 @@ drop_cols <- function(df, cols_to_drop){
 
 # For IS driven version
 makeHAI <- function(sdy, output_dir){
-  
+
   # Setup directory vars
   # wk_dir <- getwd()
   # hai_dir <- file.path(wk_dir,"RDSGen/HAI_preproc_data")
-  
+
   # Get rawdata from ImmuneSpace Connection or file (SDY80)
   # SDY80's IS data is not the same as original because observations were only allowed
   # if they had GE data as well (GEO standards).  The original data is available via
@@ -155,16 +155,16 @@ makeHAI <- function(sdy, output_dir){
     origd0 <- filter(orig_raw, day == 0)
     origd0 <- dplyr::select(origd0, -day)
     names(origd0) <- c("subject","d0_H1N1", "d0_A_Brisbane", "d0_A_Uruguay","d0_B_Brisbane")
-    
+
     origd28 <- filter(orig_raw, day == 70)
     origd28 <- dplyr::select(origd28, -day)
     names(origd28) <- c("subject","d28_H1N1", "d28_A_Brisbane", "d28_A_Uruguay","d28_B_Brisbane")
-    
+
     joined_data <- left_join(origd0, origd28, by = "subject")
     joined_data <- joined_data[complete.cases(joined_data),]
-    
-    firstpart <- c("cohort", "d0_std_norm_H1N1", "d0_std_norm_A_Uruguay", "d0_std_norm_A_Brisbane", 
-                   "d0_std_norm_B_Brisbane", "fc_std_norm_H1N1", "fc_std_norm_A_Uruguay", 
+
+    firstpart <- c("cohort", "d0_std_norm_H1N1", "d0_std_norm_A_Uruguay", "d0_std_norm_A_Brisbane",
+                   "d0_std_norm_B_Brisbane", "fc_std_norm_H1N1", "fc_std_norm_A_Uruguay",
                    "fc_std_norm_A_Brisbane", "fc_std_norm_B_Brisbane")
     last_names <- c("d0_norm_max","fc_norm_max","fc_norm_max_ivt", "d0_max",
                     "fc_max","fc_max_4fc", "fc_norm_max_d20","fc_norm_max_d30",
@@ -172,32 +172,26 @@ makeHAI <- function(sdy, output_dir){
     allnms <- c(firstpart, last_names)
     tmpmat <- matrix(NA,ncol = 20, nrow = 64)
     colnames(tmpmat) <- allnms
-    
+
     bind <- data.frame(joined_data, tmpmat)
-    
-    
+
+
     # Following subjects removed for low cell viability on flow or unique ethnicity
     # Also, 223 could not be mapped to an IS id
     subs_rm <- c(206, 226, 243, 247, 249, 252, 254, 263, 270, 275, 281, 282)
     titer_data <- subset(bind, !(bind$subject %in% subs_rm))
-    
+
     use_IS_ids <- FALSE
     split_subs <- FALSE
-    
+
     if(use_IS_ids == TRUE){
-      id_tbl <- read.table(file.path(wk_dir,"PreProc/SDY80_IDmap.tsv"),
-                           stringsAsFactors = F,
-                           header = T,
-                           sep = "\t")
-      
-      id_hsh <- hash(id_tbl$bioSampleID, id_tbl$participantID)
-      
+      id_hsh <- hash(SDY80_IDmap$bioSampleID, SDY80_IDmap$participantID)
       titer_data$subject <- unlist(sapply(titer_data$subject, FUN = function(x){
         return(id_hsh[[as.character(x)]])
       }))
       split_subs <- TRUE
     }
-    
+
     subids <- titer_data$subject
     strains <- c("H1N1", "A_Brisbane", "A_Uruguay","B_Brisbane")
     cohorts <- "" # none present, all young?
@@ -207,13 +201,13 @@ makeHAI <- function(sdy, output_dir){
       str_d28_names <- c(str_d28_names, paste0("d28_", virus))
     }
     # if not using ImmuneSpace IDs set to false
-    
-    
+
+
   }else{
     con <- CreateConnection(sdy)
     rawdata <- con$getDataset("hai")
-    
-    # Generate vectors from rawdata or instantiate variables based on 
+
+    # Generate vectors from rawdata or instantiate variables based on
     # nomenclature of original column headers
     subids <- unique(rawdata$participant_id)
     strains <- unique(rawdata$virus)
@@ -222,10 +216,10 @@ makeHAI <- function(sdy, output_dir){
       return(x)
     })
     cohorts <- unique(rawdata$cohort)
-    
+
     days_collected <- c(0,28)
     opts <- c("d0_","fc_")
-    
+
     # Setup df with columns, including those that will eventually be removed
     str_names <- list()
     str_d28_names <- list()
@@ -236,23 +230,23 @@ makeHAI <- function(sdy, output_dir){
       }
       str_d28_names <- c(str_d28_names, paste0("d28_", virus))
     }
-    
+
     first_names <- c("subject","cohort")
     last_names <- c("d0_norm_max","fc_norm_max","fc_norm_max_ivt", "d0_max",
                     "fc_max","fc_max_4fc", "fc_norm_max_d20","fc_norm_max_d30",
                     "fc_res_max","fc_res_max_d20","fc_res_max_d30")
-    
+
     numcol <- length(str_names) + length(str_d28_names) + length(first_names) + length(last_names)
-    titer_data <- data.frame(matrix(vector(), 
-                                    nrow = 0, 
-                                    ncol = numcol), 
+    titer_data <- data.frame(matrix(vector(),
+                                    nrow = 0,
+                                    ncol = numcol),
                              stringsAsFactors = F)
     colnames(titer_data) <- c(first_names, str_names, str_d28_names, last_names)
-    
+
     # Parse day 0 (initial) and day 28 (follow-up) titer data into df as basis for all future calculations.
-    # NOTE 1: Because the follow-up titer measurement is not always collected on day 28 exactly, 
-    # it is assumed that any value greater than 0 represents the 28th day value if there is 
-    # not a day 28 value present. 
+    # NOTE 1: Because the follow-up titer measurement is not always collected on day 28 exactly,
+    # it is assumed that any value greater than 0 represents the 28th day value if there is
+    # not a day 28 value present.
     iterator <- 1
     for(id in subids){
       sub_data <- rawdata[which(rawdata$participant_id == id),]
@@ -265,35 +259,28 @@ makeHAI <- function(sdy, output_dir){
         for(vir_name in names(strains)){
           for(day in days_collected){
             col_to_find <- paste0("d", day, "_", strains[[vir_name]])
-            rowid <- which(rawdata$participant_id == id & 
-                             rawdata$study_time_collected == day & 
+            rowid <- which(rawdata$participant_id == id &
+                             rawdata$study_time_collected == day &
                              rawdata$virus == vir_name)
             if(length(rowid) == 0){
-              rowid <- which(rawdata$participant_id == id & 
-                               rawdata$study_time_collected > 0 & 
+              rowid <- which(rawdata$participant_id == id &
+                               rawdata$study_time_collected > 0 &
                                rawdata$virus == vir_name)
             }
             if(length(rowid) > 1){
               rowid <- rowid[[1]]
             }
-            
             target_row <- rawdata[rowid, ]
-            
-            if(sdy == "SDY80" & as.integer(target_row$value_reported) == 19){ # To mimic original table
-              titer_data[iterator, col_to_find] <- 10
-            }else{
-              titer_data[iterator, col_to_find] <- as.integer(target_row$value_reported)
-            }
-            
+            titer_data[iterator, col_to_find] <- as.integer(target_row$value_reported)
           }
         }
         iterator <- iterator + 1
       }
     }
-    
+
     split_subs <- TRUE
   }
-  
+
   # setup list to hold median and sd values for later use in calculations
   glob_names <- c("d0_med", "d0_sd","fc_med", "fc_sd")
   li <- vector("list",length = length(strains))
@@ -302,10 +289,10 @@ makeHAI <- function(sdy, output_dir){
   for(l in glob_names){
     glob_vals[[l]] <- li
   }
-  
+
   # calc median and sd for d0 cols
   glob_vals <- med_sd_calc("d0_", strains , glob_vals, titer_data)
-  
+
   # calc fold change
   for(virus in strains){
     d0_col <- paste0("d0_", virus)
@@ -313,12 +300,12 @@ makeHAI <- function(sdy, output_dir){
     fc_col <- paste0("fc_", virus)
     titer_data[,fc_col] <- titer_data[,d28_col]/titer_data[,d0_col]
   }
-  
+
   # calc fold change med and sd
   glob_vals <- med_sd_calc("fc_", strains , glob_vals, titer_data)
-  
+
   # calc standardized and normalized value for each possibility of (d0,fc) x (strains)
-  # sd used in all non-SDY80 studies because more than 50% of subjects were defined 
+  # sd used in all non-SDY80 studies because more than 50% of subjects were defined
   # as non-responders which causes denominator to be zero
   for(ver in opts){
     for(virus in strains){
@@ -337,35 +324,35 @@ makeHAI <- function(sdy, output_dir){
       }
     }
   }
-  
+
   # Assign snapshots of variables to global_env for use with mapply.
   assign("gl_tdata", titer_data, envir = .GlobalEnv)
   assign("gl_strains", strains, envir = .GlobalEnv)
-  
+
   # Select maxima for (d0,fc) x ("","std_norm") columns
   for(ver in opts){
     titer_data[[paste0(ver,"max")]] <- mapply(max_select, titer_data$subject, ver)
     titer_data[[paste0(ver,"norm_max")]] <- mapply(max_select, titer_data$subject, paste0(ver,"std_norm_"))
   }
-  
+
   # determine fc_max_4fc, which is categorization based on fold change > 4
   titer_data$fc_max_4fc <- unlist(lapply(titer_data$fc_max, FUN = function(x){
     if(x > 4){return(1)}else{return(0)}
     }))
-  
+
   # Inverse normal transformation of standardized/normalized max fold change column
   # Done by quantile normalization on a modified ranking of observations
   # fc_norm_max_ivt << provided from Yuri Kotliarov
   ranked <- rank(titer_data$fc_norm_max, na.last = "keep")
   P <- ranked / (sum(!is.na(ranked)) + 1) # +1 needed to avoid 0,1 values that generate inf, -inf
   titer_data$fc_norm_max_ivt <- qnorm(P)
-  
+
   # setup meta-list for possible titer tables based on cohorts: young, old, and combined are possible
   submxs <- list()
   submxs[["combined"]] <- titer_data
-  
+
   # Generate subset matrices based on age and perform statistical work on each separately
-  # SDY212 and the other studies use different nomenclature for categorization, therefore 
+  # SDY212 and the other studies use different nomenclature for categorization, therefore
   # need to check against lists
   yng_ls <- c("Cohort_1", "Young adults 21-30 years old")
   old_ls <- c("Cohort_2", "Cohort2", "Older adults >= 65 years old", "healthy adults, 50-74 yo")
@@ -377,17 +364,17 @@ makeHAI <- function(sdy, output_dir){
         submxs[["old"]]  <- titer_data[which(titer_data$cohort == coh),]
       }else{
         # SDY67-old is only subjects over 60 yrs old.  These subject IDs are from the demographic file.
-        subs_keep <-  c("SUB113453", "SUB113458", "SUB113460", "SUB113461", "SUB113463", "SUB113464", 
-                        "SUB113466", "SUB113467", "SUB113468", "SUB113470", "SUB113471", "SUB113486", 
-                        "SUB113492", "SUB113493", "SUB113494", "SUB113495", "SUB113496", "SUB113497", 
-                        "SUB113499", "SUB113500", "SUB113501", "SUB113502", "SUB113503", "SUB113504", 
-                        "SUB113505", "SUB113508", "SUB113509", "SUB113510", "SUB113512", "SUB113516", 
-                        "SUB113517", "SUB113525", "SUB113526", "SUB113527", "SUB113528", "SUB113529", 
-                        "SUB113532", "SUB113533", "SUB113535", "SUB113536", "SUB113540", "SUB113541", 
-                        "SUB113543", "SUB113545", "SUB113546", "SUB113547", "SUB113549", "SUB113553", 
-                        "SUB113555", "SUB113556", "SUB113564", "SUB113571", "SUB113572", "SUB113574", 
-                        "SUB113575", "SUB113577", "SUB113578", "SUB113580", "SUB113586", "SUB113593", 
-                        "SUB113594", "SUB113595", "SUB113596", "SUB113599", "SUB113602", "SUB113603", 
+        subs_keep <-  c("SUB113453", "SUB113458", "SUB113460", "SUB113461", "SUB113463", "SUB113464",
+                        "SUB113466", "SUB113467", "SUB113468", "SUB113470", "SUB113471", "SUB113486",
+                        "SUB113492", "SUB113493", "SUB113494", "SUB113495", "SUB113496", "SUB113497",
+                        "SUB113499", "SUB113500", "SUB113501", "SUB113502", "SUB113503", "SUB113504",
+                        "SUB113505", "SUB113508", "SUB113509", "SUB113510", "SUB113512", "SUB113516",
+                        "SUB113517", "SUB113525", "SUB113526", "SUB113527", "SUB113528", "SUB113529",
+                        "SUB113532", "SUB113533", "SUB113535", "SUB113536", "SUB113540", "SUB113541",
+                        "SUB113543", "SUB113545", "SUB113546", "SUB113547", "SUB113549", "SUB113553",
+                        "SUB113555", "SUB113556", "SUB113564", "SUB113571", "SUB113572", "SUB113574",
+                        "SUB113575", "SUB113577", "SUB113578", "SUB113580", "SUB113586", "SUB113593",
+                        "SUB113594", "SUB113595", "SUB113596", "SUB113599", "SUB113602", "SUB113603",
                         "SUB113604", "SUB113605", "SUB113606")
         subs_keep <- sapply(subs_keep, FUN = function(x){
           x <- paste0(x,".67")
@@ -396,9 +383,9 @@ makeHAI <- function(sdy, output_dir){
       }
     }
   }
-  
-  # fc_res_max is generated by first binning the subjects' d0_norm_max data 
-  # according to a manual selection and then normalizing/standardizing 
+
+  # fc_res_max is generated by first binning the subjects' d0_norm_max data
+  # according to a manual selection and then normalizing/standardizing
   # the inverse normal transformation values within those bins.
   # This code is based on Yuri Kotliarov's work.
   SDY404_bins <- list(c(1,5),c(0.25,1,5),c())
@@ -410,39 +397,39 @@ makeHAI <- function(sdy, output_dir){
   SDY63_bins <- list(c(2,6),c(2),c(2))
   # SDY67 / 80 not derived from pngs in HIPC google drive, but rather determined by following method:
   # file <- fread("original_hai_tbl")
-  # df <- data.frame(file$fc_res_max,file$fc_norm_max_ivt,file$d0_norm_max) 
+  # df <- data.frame(file$fc_res_max,file$fc_norm_max_ivt,file$d0_norm_max)
   # df <- df[order($fc_norm_max_ivt,$d0_norm_max),]
   # By looking at where ivt is the same but fc_res_max was different, one can guess that they
   # were in different bins and estimate the cutoff points by looking at the d0_norm_max value.
   SDY67_bins <- list(c(0.1,0.5,1.5,4,6),c(),c(0.1,0.5,1.5,6))
-  SDY80_bins <- list(c(1,5),c(),c())
-  
+  SDY80_bins <- list(c(1,5),c(),c()) # NOT FINISHED YET!
+
   bname <- paste0(sdy,"_bins")
   bins <- get(bname)
   names(bins) <- c("combined", "young", "old")
-  
+
   for(name in names(submxs)){
     df <- submxs[[name]]
-    df$bin <- cut(df$d0_norm_max, 
-                  breaks = c(-Inf, bins[[name]], Inf), 
+    df$bin <- cut(df$d0_norm_max,
+                  breaks = c(-Inf, bins[[name]], Inf),
                   labels = 1:(length(bins[[name]])+1) )
-    
+
     # need count of bin members to force NA value for bins with < 3 members.
     # Original code was in Matlab and may not have generated median / sd vals for < 3 groups.
     df = df %>%
       group_by(bin) %>%
-      mutate(count = n()) %>%
+      dplyr::mutate(count = n()) %>% # MUST name 'dplyr' in front of mutate to get dplyr::n()
       ungroup()
-    
+
     df = df %>%
       group_by(bin) %>%
-      mutate(fc_res_max = 
+      mutate(fc_res_max =
                ifelse( count > 2 | sdy == "SDY63", # SDY63 Old allows a 2 count group to be processed
-                       (fc_norm_max_ivt - median(fc_norm_max_ivt, na.rm=T)) / 
+                       (fc_norm_max_ivt - median(fc_norm_max_ivt, na.rm=T)) /
                          sd(fc_norm_max_ivt, na.rm=T),
                        NA)) %>%
       ungroup()
-    
+
     # discretize for all combinations of ("fc_norm_max","fc_res_max") x ("d20","d30")
     in_cols <- c("fc_norm_max", "fc_res_max")
     in_percs <- c(20, 30)
@@ -452,7 +439,7 @@ makeHAI <- function(sdy, output_dir){
         df[[targ_col]] <- discretize(df, cl, perc, sdy, name)
       }
     }
-    
+
     # Remove d28, bin, and cohort columns b/c not present in results of original manual versions.
     df <- drop_cols(df, c(str_d28_names, "bin", "cohort", "count"))
 
@@ -460,8 +447,8 @@ makeHAI <- function(sdy, output_dir){
     if(split_subs == T){
       df$subject <- unlist(lapply(df$subject, sub_split))
     }
-    
-    
+
+
     # output tibble / df as a tab-delimited file
     base <- "_hai_titer_table.txt"
     fname <- ""
@@ -470,15 +457,15 @@ makeHAI <- function(sdy, output_dir){
     }else{
       fname <- paste0(sdy, "_", name, base)
     }
-    
+
     # row.names to NULL so that datasets.R does not read in row number as subjectID
-    write.table(df, file = file.path(output_dir,fname), 
-                sep = "\t", 
+    write.table(df, file = file.path(output_dir,fname),
+                sep = "\t",
                 col.names = TRUE,
                 row.names = FALSE)
   }
 }
-  
-  
-  
+
+
+
 
