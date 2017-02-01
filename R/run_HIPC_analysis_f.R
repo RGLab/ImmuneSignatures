@@ -105,7 +105,7 @@ hipc_meta_analysis <- function(rds_dir, cohort, orig_params = T, output_dir){
 #' Runs full pipeline from start to finish with user input required at certain points
 #' @importFrom xml2 read_html
 #' @importFrom XML xmlToList xmlParse
-#' @importFrom plyr ldply
+#' @importFrom plyr ldply l_ply
 #' @import dplyr
 #' @importFrom httr GET authenticate write_disk
 #' @importFrom stringr str_sub str_match str_trim
