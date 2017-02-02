@@ -149,7 +149,7 @@ makeHAI <- function(sdy, output_dir){
   # Get rawdata from ImmuneSpace Connection or file (SDY80)
   # SDY80's IS data is not the same as original because observations were only allowed
   # if they had GE data as well (GEO standards).  The original data is available via
-  # Immport in the SQL dump.  However, for simplicity, the file is downloaded during setup.
+  # Immport in the SQL dump.  However, for simplicity, the file preloaded in package
   if(sdy == "SDY80"){
     orig_raw <- as_tibble(SDY80_rawtiterdata)
     origd0 <- filter(orig_raw, day == 0)
@@ -177,20 +177,14 @@ makeHAI <- function(sdy, output_dir){
 
 
     # Following subjects removed for low cell viability on flow or unique ethnicity
-    # Also, 223 could not be mapped to an IS id
     subs_rm <- c(206, 226, 243, 247, 249, 252, 254, 263, 270, 275, 281, 282)
     titer_data <- subset(bind, !(bind$subject %in% subs_rm))
 
-    use_IS_ids <- FALSE
-    split_subs <- FALSE
-
-    if(use_IS_ids == TRUE){
-      id_hsh <- hash(SDY80_IDmap$bioSampleID, SDY80_IDmap$participantID)
-      titer_data$subject <- unlist(sapply(titer_data$subject, FUN = function(x){
-        return(id_hsh[[as.character(x)]])
-      }))
-      split_subs <- TRUE
-    }
+    id_hsh <- hash(SDY80_IDmap$bioSampleID, SDY80_IDmap$participantID)
+    titer_data$subject <- sapply(titer_data$subject, FUN = function(x){
+      val <- id_hsh[[as.character(x)]]
+      return(ifelse(is.null(val), NA, val))
+    })
 
     subids <- titer_data$subject
     strains <- c("H1N1", "A_Brisbane", "A_Uruguay","B_Brisbane")
@@ -200,8 +194,6 @@ makeHAI <- function(sdy, output_dir){
     for(virus in strains){
       str_d28_names <- c(str_d28_names, paste0("d28_", virus))
     }
-    # if not using ImmuneSpace IDs set to false
-
 
   }else{
     con <- CreateConnection(sdy)
@@ -277,8 +269,6 @@ makeHAI <- function(sdy, output_dir){
         iterator <- iterator + 1
       }
     }
-
-    split_subs <- TRUE
   }
 
   # setup list to hold median and sd values for later use in calculations
@@ -319,6 +309,8 @@ makeHAI <- function(sdy, output_dir){
       if(sdy == "SDY80"){
         mad <- median(abs(tcol - colmed))
         titer_data[std_norm_col] <- (tcol - colmed) / mad
+        rep_ls <- titer_data[std_norm_col] == Inf
+        titer_data[std_norm_col][rep_ls] <- NA
       }else{
         titer_data[std_norm_col] <- (tcol - colmed) / colsd
       }
@@ -443,20 +435,18 @@ makeHAI <- function(sdy, output_dir){
     # Remove d28, bin, and cohort columns b/c not present in results of original manual versions.
     df <- drop_cols(df, c(str_d28_names, "bin", "cohort", "count"))
 
-    # remove extra sdy info on subids
-    if(split_subs == T){
-      df$subject <- unlist(lapply(df$subject, sub_split))
-    }
-
 
     # output tibble / df as a tab-delimited file
     base <- "_hai_titer_table.txt"
     fname <- ""
     if(sdy == "SDY80"){
       fname <- paste0("CHI-nih_", name, base)
+      df <- df[-which(is.na(df$subject)), ] # because not able to map 223 to IS ID
     }else{
       fname <- paste0(sdy, "_", name, base)
     }
+
+    df$subject <- unlist(lapply(df$subject, sub_split))
 
     # row.names to NULL so that datasets.R does not read in row number as subjectID
     write.table(df, file = file.path(output_dir,fname),

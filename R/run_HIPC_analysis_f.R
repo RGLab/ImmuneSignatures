@@ -15,12 +15,22 @@ hipc_preprocess <- function(studies, hai_dir, ge_dir, rawdata_dir){
   # get user input
   user <- readline(prompt = "Username for ImmuneSpace: ")
   pwd <- readline(prompt = "Password for ImmuneSpace: ")
-  yale.anno <- readline(prompt = "Yale Studies' Gene Annoation: [O = original, l = R library, m = Illumina manifest]  ")
+  yale.anno <- readline(prompt =
+                          "Yale Studies' Gene Annoation: [O = original, l = R library, m = Illumina manifest]  ")
   yale.anno <- ifelse(yale.anno %in% c("O", "o", ""), "o", yale.anno)
-  sdy80.anno <- readline(prompt = "SDY80 Gene Annotation: [O = original, l = R library]  ")
-  sdy80.anno <- ifelse(sdy80.anno %in% c("O", "o", ""), "o", sdy80.anno)
-  sdy80.norm <- readline(prompt = "Re-normalize SDY80 GE data? [T / f]  ")
-  ifelse(sdy80.norm %in% c(T, TRUE, "t", t), TRUE, FALSE)
+  sdy80.process <- readline(prompt =
+                              "Process SDY80 rawdata or use original pre-processed tables? [p = process / O = original] ")
+  sdy80.process <- ifelse(sdy80.process %in% c("O", "o", "original"), FALSE, TRUE)
+
+  if(sdy80.process == TRUE){
+    sdy80.anno <- readline(prompt = "SDY80 Gene Annotation: [O = original, l = R library]  ")
+    sdy80.anno <- ifelse(sdy80.anno %in% c("O", "o", ""), "o", sdy80.anno)
+    sdy80.norm <- readline(prompt = "Re-normalize SDY80 GE data? [T / f]  ")
+    sdy80.norm <- ifelse(sdy80.norm %in% c(T, TRUE, "t", t), TRUE, FALSE)
+  }else{
+    sdy80.anno <- "o"
+    sdy80.norm <- F
+  }
 
   input_map <- list()
   input_map$o <- "original"
@@ -31,16 +41,19 @@ hipc_preprocess <- function(studies, hai_dir, ge_dir, rawdata_dir){
   sdy80.anno <- input_map[[sdy80.anno]]
 
   for(sdy in studies){
-    if(!(sdy %in% c("SDY400","SDY80"))){
-      print(paste0("Generating GE for ", sdy))
-      makeGE(sdy, user, pwd,
-             yale.anno = yale.anno,
-             sdy80.anno = sdy80.anno,
-             sdy80.norm = sdy80.norm,
-             output_dir = ge_dir,
-             rawdata_dir = rawdata_dir)
-    }
-    if(sdy != "SDY80"){
+    if( !(sdy %in% c("SDY400","SDY80")) | (sdy == "SDY80" & sdy80.process == TRUE) ){
+        print(paste0("Generating GE for ", sdy))
+        makeGE(sdy, user, pwd,
+               yale.anno = yale.anno,
+               sdy80.anno = sdy80.anno,
+               sdy80.norm = sdy80.norm,
+               output_dir = ge_dir,
+               rawdata_dir = rawdata_dir)
+        print(paste0("Generating HAI for ", sdy))
+        makeHAI(sdy, output_dir = hai_dir)
+        print(paste0("Generating Demo for ", sdy))
+        makeDemo(sdy, output_dir = ge_dir)
+    }else if(sdy == "SDY400"){
       print(paste0("Generating HAI for ", sdy))
       makeHAI(sdy, output_dir = hai_dir)
       print(paste0("Generating Demo for ", sdy))
@@ -132,21 +145,23 @@ hipc_meta_analysis <- function(rds_dir, cohort, orig_params = T, output_dir){
 hipc_full_pipeline <- function(){
 
   studies <- c("SDY212", "SDY63", "SDY404", "SDY400", "SDY80", "SDY67")
-  directory <- readline(prompt = "Save output files to new directory called 'ImmSig_Analysis'? [ T / f ]")
-  if(directory %in% c(T, "t", "")){
+  directory <- readline(prompt = "Save output files to new directory called 'ImmSig_Analysis'? [ T / f ] ")
+  if(directory %in% c(T, "T", "t", "")){
     wkdir <- file.path(getwd(),"ImmSig_Analysis")
     dir.create(path = wkdir)
-  }else if(directory %in% c(F, "f")){
+  }else if(directory %in% c(F, "F", "f")){
     wkdir <- readline(prompt = "Please specify full path for directory where you want to save files: ")
     if(!dir.exists(wkdir)){
       stop("Directory does not exist. Exiting analysis")
     }
+  }else{
+    stop("Terminating: direction not understood")
   }
 
 
   # 1. Extract and pre-process data from ImmuneSpace, ImmPort, or GEO databases
   gen_files <- readline(prompt = "Generate and preprocess rawdata? [T / f]  ")
-  if(gen_files %in% c(T, "t", "")){
+  if(gen_files %in% c(T, "T", "t", "")){
     # create preproc dir and subdirectories
     pp_dir <- file.path(wkdir,"PreProc_Data")
     dir.create(path = pp_dir)
@@ -170,7 +185,7 @@ hipc_full_pipeline <- function(){
   rds_dir <- file.path(wkdir,"Rds_data")
   dir.create(path = rds_dir)
 
-  if(run_rds %in% c(T, "t", "")){
+  if(run_rds %in% c(T, "T", "t", "")){
     hipc_make_rds(studies, hai_dir, ge_dir, rds_dir)
   }
 
@@ -178,7 +193,7 @@ hipc_full_pipeline <- function(){
 
   # Step 3: Run meta analysis script
   run_meta <- readline(prompt = "Are you ready to run meta analysis? [T / f]  ")
-  if(run_meta %in% c(T, "t", "")){
+  if(run_meta %in% c(T, "T", "t", "")){
     output_dir <- file.path(wkdir,"meta_analysis_output")
     dir.create(path = output_dir)
     hipc_meta_analysis(rds_dir, cohort = "young", orig_params = T, output_dir = output_dir)
