@@ -4,7 +4,7 @@
 \alias{hipc_preprocess}
 \title{Generates TSV text tables for use in the hipc pipeline from ImmuneSpace data}
 \usage{
-hipc_preprocess(studies, hai_dir, ge_dir, rawdata_dir)
+hipc_preprocess(studies, hai_dir, ge_dir, rawdata_dir, orig_params = T)
 }
 \arguments{
 \item{studies}{a vector of characters holding the study names for which to generate eSets}

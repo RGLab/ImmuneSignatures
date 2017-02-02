@@ -11,23 +11,28 @@
 #' @param ge_dir a path for the preprocessed GE and demographic data
 #' @param rawdata_dir a path for directory to download rawdata into
 #' @export
-hipc_preprocess <- function(studies, hai_dir, ge_dir, rawdata_dir){
+hipc_preprocess <- function(studies, hai_dir, ge_dir, rawdata_dir, orig_params = T){
   # get user input
   user <- readline(prompt = "Username for ImmuneSpace: ")
   pwd <- readline(prompt = "Password for ImmuneSpace: ")
-  yale.anno <- readline(prompt =
-                          "Yale Studies' Gene Annoation: [O = original, l = R library, m = Illumina manifest]  ")
-  yale.anno <- ifelse(yale.anno %in% c("O", "o", ""), "o", yale.anno)
-  sdy80.process <- readline(prompt =
-                              "Process SDY80 rawdata or use original pre-processed tables? [p = process / O = original] ")
-  sdy80.process <- ifelse(sdy80.process %in% c("O", "o", "original"), FALSE, TRUE)
 
-  if(sdy80.process == TRUE){
-    sdy80.anno <- readline(prompt = "SDY80 Gene Annotation: [O = original, l = R library]  ")
-    sdy80.anno <- ifelse(sdy80.anno %in% c("O", "o", ""), "o", sdy80.anno)
-    sdy80.norm <- readline(prompt = "Re-normalize SDY80 GE data? [T / f]  ")
-    sdy80.norm <- ifelse(sdy80.norm %in% c(T, TRUE, "t", t), TRUE, FALSE)
+  if(orig_params == F){
+    yale.anno <- readline(prompt =
+                            "Yale Studies' Gene Annotation: [H = HIPC manuscript, l = R library, m = Illumina manifest]  ")
+    yale.anno <- ifelse(yale.anno %in% c("H", "h", ""), "o", yale.anno)
+    sdy80.process <- readline(prompt =
+                                "Process SDY80 rawdata or use pre-processed tables from HIPC manuscript? [p = process / H = HIPC manuscript] ")
+    sdy80.process <- ifelse(sdy80.process %in% c("H", "h", ""), FALSE, TRUE)
+
+    if(sdy80.process == TRUE){
+      sdy80.anno <- readline(prompt = "SDY80 Gene Annotation: [H = HIPC manuscript, l = R library]  ")
+      sdy80.anno <- ifelse(sdy80.anno %in% c("H", "h", ""), "o", sdy80.anno)
+      sdy80.norm <- readline(prompt = "Re-normalize SDY80 GE data? [T / f]  ")
+      sdy80.norm <- ifelse(sdy80.norm %in% c(T, "", "t", "T"), TRUE, FALSE)
+    }
   }else{
+    yale.anno <- "o"
+    sdy80.process <- F
     sdy80.anno <- "o"
     sdy80.norm <- F
   }
@@ -70,7 +75,8 @@ hipc_preprocess <- function(studies, hai_dir, ge_dir, rawdata_dir){
 #' @param rds_dir a path for the output files (rds)
 #' @export
 hipc_make_rds <- function(studies, hai_dir, ge_dir, rds_dir){
-  cat("Now combining files for each study into rds / eset file")
+  message("Now combining files for each study into rds / eset file")
+  message("\n")
   combined_hai <- combine_hai_data(hai_dir, output_dir = rds_dir)
   for(sdy in studies){
     make_rds(sdy, ge_dir, combined_hai, output_dir = rds_dir)
@@ -101,6 +107,7 @@ hipc_meta_analysis <- function(rds_dir, cohort, orig_params = T, output_dir){
     indiv_rds <- ifelse(indiv_rds %in% c(T, TRUE, "t", t), TRUE, FALSE)
 
     message(paste0("Running meta analysis for ", cohort, " cohort"))
+    message("\n")
     meta_analysis(geneSetDB = geneSetDB,
                   rds_data_dir = rds_dir,
                   cohort = cohort,
@@ -162,6 +169,7 @@ hipc_full_pipeline <- function(){
   # 1. Extract and pre-process data from ImmuneSpace, ImmPort, or GEO databases
   gen_files <- readline(prompt = "Generate and preprocess rawdata? [T / f]  ")
   if(gen_files %in% c(T, "T", "t", "")){
+    message("Creating PreProc_Data directory and sub-directories ... ")
     # create preproc dir and subdirectories
     pp_dir <- file.path(wkdir,"PreProc_Data")
     dir.create(path = pp_dir)
@@ -175,7 +183,10 @@ hipc_full_pipeline <- function(){
     rawdata_dir <- file.path(pp_dir,"rawdata")
     dir.create(path = rawdata_dir)
 
-    hipc_preprocess(studies, hai_dir, ge_dir, rawdata_dir)
+    orig_params <- readline(prompt = "Use original parameters from HIPC manuscript? [ T / f ] ")
+    orig_params <- ifelse(orig_params %in% c(T, "", "t", "T"), TRUE, FALSE)
+
+    hipc_preprocess(studies, hai_dir, ge_dir, rawdata_dir, orig_params)
   }
 
   cat("Moving on to RDS Generation")
