@@ -56,12 +56,12 @@ sub_check <- function(sub_df, strains){
   return(final)
 }
 
-max_select <- function(subid,trg_col){
+max_select <- function(subid, trg_col){
   tmp_ls <- list()
   for(virus in gl_strains){
-    tmp_ls[virus] <- gl_tdata[gl_tdata$subject == subid, paste0(trg_col,virus)]
+    tmp_ls[virus] <- gl_tdata[gl_tdata$subject == subid, paste0(trg_col, virus)]
   }
-  return(max(unlist(tmp_ls),na.rm = TRUE))
+  return(max(unlist(tmp_ls), na.rm = TRUE))
 }
 
 # Method by Yuri Kotliarov to categorize an observation based on low and high percentiles
@@ -183,7 +183,7 @@ makeHAI <- function(sdy, output_dir){
     id_hsh <- hash(SDY80_IDmap$bioSampleID, SDY80_IDmap$participantID)
     titer_data$subject <- sapply(titer_data$subject, FUN = function(x){
       val <- id_hsh[[as.character(x)]]
-      return(ifelse(is.null(val), NA, val))
+      return(ifelse(is.null(val), 223, val))
     })
 
     subids <- titer_data$subject
@@ -441,7 +441,7 @@ makeHAI <- function(sdy, output_dir){
     fname <- ""
     if(sdy == "SDY80"){
       fname <- paste0("CHI-nih_", name, base)
-      df <- df[-which(is.na(df$subject)), ] # because not able to map 223 to IS ID
+      df <- df[-which(df$subject == 223), ] # because not able to map 223 to IS ID
     }else{
       fname <- paste0(sdy, "_", name, base)
     }

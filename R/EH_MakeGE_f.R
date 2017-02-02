@@ -365,7 +365,6 @@ makeGE <- function(sdy,
       id_ls <- as.list(hugene10sttranscriptclusterALIAS2PROBE)
       keys <- inv_alias2probe(id_ls)
       gene_syms <- hashmap(keys, names(keys), probe_ids)
-
     }
 
     # To mimic original file, I remove all rows that were not
