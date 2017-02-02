@@ -15,9 +15,12 @@ hipc_preprocess <- function(studies, hai_dir, ge_dir, rawdata_dir){
   # get user input
   user <- readline(prompt = "Username for ImmuneSpace: ")
   pwd <- readline(prompt = "Password for ImmuneSpace: ")
-  yale.anno <- readline(prompt = "Yale Studies' Annoation: [o = original, l = library, m = manifest]  ")
-  sdy80.anno <- readline(prompt = "SDY80 Annotation: [o = original, l = library]  ")
-  sdy80.norm <- readline(prompt = "Re-normalize SDY80 GE data? [T or F]  ")
+  yale.anno <- readline(prompt = "Yale Studies' Gene Annoation: [O = original, l = R library, m = Illumina manifest]  ")
+  yale.anno <- ifelse(yale.anno %in% c("O", "o", ""), "o", yale.anno)
+  sdy80.anno <- readline(prompt = "SDY80 Gene Annotation: [O = original, l = R library]  ")
+  sdy80.anno <- ifelse(sdy80.anno %in% c("O", "o", ""), "o", sdy80.anno)
+  sdy80.norm <- readline(prompt = "Re-normalize SDY80 GE data? [T / f]  ")
+  ifelse(sdy80.norm %in% c(T, TRUE, "t", t), TRUE, FALSE)
 
   input_map <- list()
   input_map$o <- "original"
@@ -75,11 +78,14 @@ hipc_meta_analysis <- function(rds_dir, cohort, orig_params = T, output_dir){
   if(orig_params == F){
     FDR.cutoff <- as.float(readline(prompt = "Input FDR.cutoff (orig = 0.5):  "))
     pvalue.cutoff <- as.float(readline(prompt = "Input pvalue.cutoff (orig = 0.01):  "))
-    endPoint <- as.integer(readline(prompt = "Input HAI endPoint discretization cutoff [20 or 30]:  "))
+    endPoint <- as.integer(readline(prompt = "Input HAI discretization low % cutoff [20 or 30]:  "))
     endPoint <- paste0("fc_res_max_d", endPoint)
-    adjusted <- readline(prompt = "Adjusted = [T / F] ")
-    baselineOnly <- readline(prompt = "baselineOnly = [T / F] ")
+    adjusted <- readline(prompt = "Adjusted = [T / f] ")
+    adjusted <- ifelse(adjusted %in% c(T, TRUE, "t", t), TRUE, FALSE)
+    baselineOnly <- readline(prompt = "baselineOnly = [T / f] ")
+    baselineOnly <- ifelse(baselineOnly %in% c(T, TRUE, "t", t), TRUE, FALSE)
     indiv_rds <- readline(prompt = "output individual Rds of gene module analysis? [T / F]  ")
+    indiv_rds <- ifelse(indiv_rds %in% c(T, TRUE, "t", t), TRUE, FALSE)
 
     message(paste0("Running meta analysis for ", cohort, " cohort"))
     meta_analysis(geneSetDB = geneSetDB,
@@ -126,12 +132,23 @@ hipc_meta_analysis <- function(rds_dir, cohort, orig_params = T, output_dir){
 hipc_full_pipeline <- function(){
 
   studies <- c("SDY212", "SDY63", "SDY404", "SDY400", "SDY80", "SDY67")
+  directory <- readline(prompt = "Save output files to new directory called 'ImmSig_Analysis'? [ T / f ]")
+  if(directory %in% c(T, "t", "")){
+    wkdir <- file.path(getwd(),"ImmSig_Analysis")
+    dir.create(path = wkdir)
+  }else if(directory %in% c(F, "f")){
+    wkdir <- readline(prompt = "Please specify full path for directory where you want to save files: ")
+    if(!dir.exists(wkdir)){
+      stop("Directory does not exist. Exiting analysis")
+    }
+  }
+
 
   # 1. Extract and pre-process data from ImmuneSpace, ImmPort, or GEO databases
-  gen_files <- readline(prompt = "Generate and preprocess rawdata? [T or F]  ")
-  if(gen_files){
+  gen_files <- readline(prompt = "Generate and preprocess rawdata? [T / f]  ")
+  if(gen_files %in% c(T, "t", "")){
     # create preproc dir and subdirectories
-    pp_dir <- file.path(getwd(),"PreProc_Data")
+    pp_dir <- file.path(wkdir,"PreProc_Data")
     dir.create(path = pp_dir)
 
     hai_dir <- file.path(pp_dir,"HAI")
@@ -149,20 +166,20 @@ hipc_full_pipeline <- function(){
   cat("Moving on to RDS Generation")
 
   # Step 2: Combine pre-processed files into Rds (BioConductor eset)
-  run_rds <- readline(prompt = "Are you ready to run rds generation file? [T or F]  ")
-  rds_dir <- file.path(getwd(),"Rds_data")
+  run_rds <- readline(prompt = "Are you ready to run rds generation file? [T / f]  ")
+  rds_dir <- file.path(wkdir,"Rds_data")
   dir.create(path = rds_dir)
 
-  if(run_rds){
+  if(run_rds %in% c(T, "t", "")){
     hipc_make_rds(studies, hai_dir, ge_dir, rds_dir)
   }
 
   cat("Moving on to Meta Analysis")
 
   # Step 3: Run meta analysis script
-  run_meta <- readline(prompt = "Are you ready to run meta analysis? [T or F]  ")
-  if(run_meta){
-    output_dir <- file.path(getwd(),"meta_analysis_output")
+  run_meta <- readline(prompt = "Are you ready to run meta analysis? [T / f]  ")
+  if(run_meta %in% c(T, "t", "")){
+    output_dir <- file.path(wkdir,"meta_analysis_output")
     dir.create(path = output_dir)
     hipc_meta_analysis(rds_dir, cohort = "young", orig_params = T, output_dir = output_dir)
     hipc_meta_analysis(rds_dir, cohort = "old", orig_params = T, output_dir = output_dir)
