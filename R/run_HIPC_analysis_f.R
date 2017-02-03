@@ -138,7 +138,8 @@ hipc_meta_analysis <- function(rds_dir, cohort, orig_params = T, output_dir){
 #' @importFrom data.table fread setnames
 #' @importFrom hash hash has.key
 #' @importFrom preprocessCore normalize.quantiles
-#' @importFrom GEOquery gunzip
+#' @importFrom GEOquery gunzip getGEO Table
+#' @importFrom tibble as_tibble
 #' @import qusage
 #' @import knitr
 #' @import Biobase

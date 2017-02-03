@@ -69,37 +69,14 @@ get_is_files <- function(gef, sdy, rawdata_dir, user, pwd){
   return(inputFiles)
 }
 
-# for SDY80, generate a list of tables by scraping GEO websites
-get_geo_files <- function(gef){
-
-  # list of accessions to pull
-  geo_acc <- gef$geo_accession
-
-  # create links with following format and pull data:
-  # https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?view=data&acc=GSM1147759&id=13600&db=GeoDb_blob98
-  base <- "https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?view=data&acc="
-  joint <- "&id="
-  tail <- "&db=GeoDb_blob98"
-
-  tbl_list <- lapply(geo_acc, FUN = function(x){
-    # generate id and link
-    digits <- gsub("GSM", "", x)
-    id <- as.integer(digits) - 1134159
-    link <- paste0(base, x, joint, id, tail)
-
-    # scrape link for content and parse to table, return with probe ID
-    dump <- GET(link)
-    dump_contents <- read_html(dump$content)
-    dump_contents_list <- xmlToList(xmlParse(dump_contents))
-    raw_table <- dump_contents_list$body$font$pre[[4]]
-    tbl_con<- textConnection(raw_table)
-    data <- read.table(tbl_con, sep = "\t", stringsAsFactors = F, header = F)
-    colnames(data) <- c("probeID", x)
-    return(data)
+# for SDY80, need to build matrix from individual accessions
+make_GEOmatrix <- function(destdir, gsm_list){
+  val_list <- lapply(gsm_list, FUN = function(x){
+    expr_vals <- Table(getGEO(x, destdir = ))[,2]
   })
-
-  # return list of tables
-  return(tbl_list)
+  expr_mx <- data.frame(matrix(unlist(val_list), ncol=length(gsm_list), byrow=F))
+  colnames(expr_mx) <- gsm_list
+  return(expr_mx)
 }
 
 # download gene expression files from immport for yale studies
@@ -121,13 +98,12 @@ get_immport_files <- function(sdy, rawdata_dir){
 
 # Significantly faster than using data.table or which statements for searching paired-values
 # NOTE 1: The key must be presented as a character; it does not auto-cast.
-# NOTE 2: keep_names needed for SDY80 when matching probes and dflt_ret for Yale Studies.
-hashmap <- function(keys, values, targ_vec, keep_names = FALSE, dflt_ret = NA){
+# NOTE 2: dflt_ret needed for for Yale Studies.
+hashmap <- function(keys, values, targ_vec, dflt_ret = NA){
   tmp_hash <- hash(keys, values)
   mapped_res <- sapply(targ_vec, FUN = function(x){
     val <- tmp_hash[[as.character(x)]]
     val <- ifelse(is.null(val), dflt_ret, val)
-    if(keep_names){names(val) <- x}
     return(val)
   })
   return(mapped_res)
@@ -247,7 +223,7 @@ makeGE <- function(sdy,
       gs_tbl <- gs_tbl[ order(GENE_SYMBOL),]
       gene_syms <- gs_tbl$GENE_SYMBOL
 
-      final_expr_vals <- as.data.frame(do.call(cbind,lapply(inputFiles, FUN = function(x){
+      expr_vals_list <- lapply(inputFiles, FUN = function(x){
         fname <- basename(x)
         targ_row <- gef[which(gef$file_info_name == fname),]
         subid <- substr(targ_row$participant_id[[1]],1,9)
@@ -268,7 +244,8 @@ makeGE <- function(sdy,
 
         # pull out expr values and return as vec
         return(tmp[,2])
-      })))
+      })
+      final_expr_vals <- as.data.frame(do.call(cbind, expr_vals_list))
 
       # these subjects were removed from original file because they were not processed
       # at the same time as the others and had a significant batch effect.
@@ -282,21 +259,17 @@ makeGE <- function(sdy,
                     "SUB113583_d0","SUB113588_d0","SUB113595_d0","SUB113610_d0")
       final_expr_vals <- remove_subs(final_expr_vals, subs_rm)
 
-      # to replicate original file, probe_ids are simply the row number
-      probe_ids <- seq(from = 1, to = length(gene_syms), by = 1)
-
-      # to be consistent with naming to have Datasets.R match them correctly
-      sdy <- "SDY67-batch2"
+      probe_ids <- seq(from = 1, to = length(gene_syms), by = 1) # Like HIPC manuscript, probe_ids are simply the row number
+      sdy <- "SDY67-batch2" # to be consistent with naming for Datasets.R
     }
 
   }else if(sdy %in% c("SDY63","SDY404","SDY400")){
-    # download files from ImmPort and read in data
+
     inputFiles <- get_immport_files(sdy, rawdata_dir)
     rawdata <- as.data.frame(fread(inputFiles))
 
     if(yale.anno == "original"){
-      # "SDY63_anno_tbl.tsb" was generated from original file (SDY63.GEMatrix.txt)
-      anno_tbl <- SDY63_anno_tbl
+      anno_tbl <- SDY63_anno_tbl # "SDY63_anno_tbl.tsv" was generated from original file (SDY63.GEMatrix.txt)
       colnames(anno_tbl) <- c("probeIDs","geneSymbol")
       keys <- anno_tbl$probeIDs
       values <- anno_tbl$geneSymbol
@@ -348,18 +321,12 @@ makeGE <- function(sdy,
   }else if(sdy == "SDY80"){
     # get data via scraping geo site and parsing into list of tables
     gef <- get_gef(sdy)
-    inputFiles <- get_geo_files(gef)
-    probe_ids <- unname(inputFiles[[1]][,1])
-    expr_vals <- as.data.frame(do.call(cbind,
-                                       lapply(inputFiles, FUN = function(x){
-                                         return(x[,2])
-                                        })
-                                ))
-    colnames(expr_vals) <- sapply(inputFiles, FUN = function(x){colnames(x)[[2]]})
-    rawdata <- cbind(probe_ids, expr_vals)
+    probe_ids <- suppressMessages(Table(getGEO(gef$geo_accession[[1]]))[,1])
+    rawdata <- suppressMessages(make_GEOmatrix(destdir = rawdata_dir, gsm_list = gef$geo_accession))
+    rawdata <- cbind(probe_ids, rawdata)
 
     if(sdy80.anno == "original"){
-      gene_syms <- hashmap(CHI_nih_gene_map$probeID, CHI_nih_gene_map$gs, probe_ids, keep_names = T)
+      gene_syms <- hashmap(SDY80_orig_anno$probeID, SDY80_orig_anno$gs, probe_ids)
 
     }else if(sdy80.anno == "library"){
       id_ls <- as.list(hugene10sttranscriptclusterALIAS2PROBE)
@@ -377,7 +344,7 @@ makeGE <- function(sdy,
     if(sdy80.norm == F){
       # to mimic original file data, but use ImmuneSpace subjectIDs instead of biosampleIDs
       colnames(rawdata) <- unname(map_headers(sdy,
-                                           colnames(expr_vals),
+                                           colnames(rawdata),
                                            is_col = "GE_name",
                                            smpl_col = "GSM"))
       final_expr_vals <- rawdata
@@ -401,3 +368,31 @@ makeGE <- function(sdy,
 # http://support.illumina.com/array/array_kits/infinium_humanmethylation450_beadchip_kit/downloads.html
 # hmn450k_ann_tbl <- read.table(file.path(pp_dir,"IlluminaHuman_450kMethylation_anno_table.txt"),
 #                               stringsAsFactors = F, sep = "\t", header = T)
+
+
+# FOR GEO ORIGINALLY SDY80
+# create links with following format and pull data:
+# https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?view=data&acc=GSM1147759&id=13600&db=GeoDb_blob98
+# base <- "https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?view=data&acc="
+# joint <- "&id="
+# tail <- "&db=GeoDb_blob98"
+#
+# tbl_list <- lapply(geo_acc, FUN = function(x){
+#   # generate id and link
+#   digits <- gsub("GSM", "", x)
+#   id <- as.integer(digits) - 1134159
+#   link <- paste0(base, x, joint, id, tail)
+#
+#   # scrape link for content and parse to table, return with probe ID
+#   dump <- GET(link)
+#   dump_contents <- read_html(dump$content)
+#   dump_contents_list <- xmlToList(xmlParse(dump_contents))
+#   raw_table <- dump_contents_list$body$font$pre[[4]]
+#   tbl_con<- textConnection(raw_table)
+#   data <- read.table(tbl_con, sep = "\t", stringsAsFactors = F, header = F)
+#   colnames(data) <- c("probeID", x)
+#   return(data)
+# })
+#
+# # return list of tables
+# return(tbl_list)
