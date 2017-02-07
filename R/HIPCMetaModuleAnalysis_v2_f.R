@@ -63,6 +63,19 @@ run_qs <- function(eset, gene_symbols, labels, validation, geneSetDB){
 ## Discovery cohorts: SDY212, SDY63, SDY404, SDY400
 ## Validation Cohorts: SDY80 (Young) and SDY67 (Older)
 #########################################################################################################
+#' Function to perform meta analysis for HIPC ImmuneSignatures Project
+#'
+#' @param geneSetDB table defining gene sets
+#' @param rds_data_dir Directory holding eset objects as rds files
+#' @param cohort Study cohort, young or old
+#' @param FDR.cutoff Cutoff for q-values in selecting significant gene sets
+#' @param pvalue.cutoff cutoff for p-values in selecting significant gene sets
+#' @param endPoint HAI table column used for categorizing response
+#' @param adjusted Use age-adjusted gene expression values, default = FALSE
+#' @param baselineOnly Use only day zero gene expression values, default = TRUE
+#' @param indiv_rds Output individual rds files for each discovery study, default = FALSE
+#' @param markdown Set output to go directly to screen for markdown files, default = FALSE
+#' @param output_dir Output directory
 meta_analysis <- function(geneSetDB,
                           rds_data_dir,
                           cohort,
@@ -72,6 +85,7 @@ meta_analysis <- function(geneSetDB,
                           adjusted = F,
                           baselineOnly = T,
                           indiv_rds = F,
+                          markdown = F,
                           output_dir){
 
   discoverySDY = c('SDY212','SDY63','SDY404','SDY400')
@@ -140,7 +154,7 @@ meta_analysis <- function(geneSetDB,
   }
 
   ## gene module meta analysis
-  combinePDFsResult = combinePDFs(quSageObjList,n.points = 2^14)
+  combinePDFsResult = combinePDFs(quSageObjList, n.points = 2^14)
 
   ## p values for gene module meta analysis
   combined.p = pdf.pVal(combinePDFsResult)
@@ -155,33 +169,51 @@ meta_analysis <- function(geneSetDB,
     pathway.activity=c(pathway.activity, tmp)
   }
 
-  ## output module meta-analysis results to the output folder
   out_matrix <- cbind(Pvalue = combined.p,
                       FDR = combined.q,
                       pathwayActivity = pathway.activity)
   rownames(out_matrix) = colnames(combinePDFsResult$path.PDF)
-  write.table(out_matrix,
-              file = paste0(output_dir, "/metaGeneModuleAnalysis_DiscoveryCohort_", cohort, ".txt"),
-              quote = F,
-              sep = "\t",
-              row.names = T,
-              col.names = NA)
 
-  ## output PDF figures for gene analysis results
-  pdf(paste0(output_dir, "/significantModules_DiscoveryCohort_", cohort, ".pdf"),
-      width = 6,
-      height = 6)
+  if(markdown == F){
+    ## output module meta-analysis results to the output folder
+    write.table(out_matrix,
+                file = paste0(output_dir, "/metaGeneModuleAnalysis_DiscoveryCohort_", cohort, ".txt"),
+                quote = F,
+                sep = "\t",
+                row.names = T,
+                col.names = NA)
 
-  index_sig <- intersect(which(combined.q < FDR.cutoff), which(combined.p < pvalue.cutoff))
+    ## output PDF figures for gene analysis results
+    pdf(paste0(output_dir, "/significantModules_DiscoveryCohort_", cohort, ".pdf"),
+        width = 6,
+        height = 6)
 
-  for(i in index_sig){
-    plot(combinePDFsResult, path.index = i)
-    legend("topleft", legend=c(discoverySDY,"metaAnalysis"),
-           lty=1, col=c("#E41A1C","#377EB8","#4DAF4A","#984EA3","black"))
-    text(0.2, 1, paste("P value =", format(combined.p[i], digits=2),sep=""))
+    index_sig <- intersect(which(combined.q < FDR.cutoff), which(combined.p < pvalue.cutoff))
+
+    for(i in index_sig){
+      plot(combinePDFsResult, path.index = i)
+      legend("topleft", legend=c(discoverySDY,"metaAnalysis"),
+             lty=1, col=c("#E41A1C","#377EB8","#4DAF4A","#984EA3","black"))
+      text(0.2, 1, paste("P value =", format(combined.p[i], digits=2),sep=""))
+    }
+
+    dev.off()
+
+  }else{
+    # plot out_matrix
+    kable(out_matrix)
+
+    # plot the pdf
+    index_sig <- intersect(which(combined.q < FDR.cutoff), which(combined.p < pvalue.cutoff))
+
+    for(i in index_sig){
+      plot(combinePDFsResult, path.index = i)
+      legend("topleft", legend=c(discoverySDY,"metaAnalysis"),
+             lty=1, col=c("#E41A1C","#377EB8","#4DAF4A","#984EA3","black"))
+      text(0.2, 1, paste("P value =", format(combined.p[i], digits=2),sep=""))
+    }
   }
 
-  dev.off()
 
   #########################################################################################################
   ##
@@ -221,34 +253,59 @@ meta_analysis <- function(geneSetDB,
   out_matrix <- cbind(pvalue, qvalue, pathway.activity.selected)
   rownames(out_matrix) <- names(geneSetDB)[index_sig] # equal to selected.pathways
 
-  write.table(out_matrix,
-              file = paste0(output_dir, "/metaGeneModuleAnalysis_ValidationCohort_", cohort, ".txt"),
-              quote = F,
-              sep = "\t",
-              row.names = T,
-              col.names = NA)
+  if(markdown == F){
+    write.table(out_matrix,
+                file = paste0(output_dir, "/metaGeneModuleAnalysis_ValidationCohort_", cohort, ".txt"),
+                quote = F,
+                sep = "\t",
+                row.names = T,
+                col.names = NA)
 
-  pdf(paste0(output_dir, "/significantModules_ValidationCohort_", cohort, ".pdf"),
-      width = 6,
-      height = 6)
+    pdf(paste0(output_dir, "/significantModules_ValidationCohort_", cohort, ".pdf"),
+        width = 6,
+        height = 6)
 
-  for(i in index_sig){
-    plot(qs.results,
-         path.index = i,
-         col = "black",
-         xlim = c(-1,1),
-         ylim = c(0,10),
-         xlab = "Gene Module Activity",
-         main = names(geneSetDB)[i]
-         )
-    text(0.2,
-         1,
-         paste("p value =",
-                round(pdf.pVal(qs.results)[i], digits = 3),
-                sep = " "))
-    abline(v = 0, lty = 2)
+    for(i in index_sig){
+      plot(qs.results,
+           path.index = i,
+           col = "black",
+           xlim = c(-1,1),
+           ylim = c(0,10),
+           xlab = "Gene Module Activity",
+           main = names(geneSetDB)[i]
+      )
+      text(0.2,
+           1,
+           paste("p value =",
+                 round(pdf.pVal(qs.results)[i], digits = 3),
+                 sep = " "))
+      abline(v = 0, lty = 2)
+    }
+    dev.off()
+
+  }else{
+    # plot out-matrix
+    kable(out_matrix)
+
+    # plot graphs
+    for(i in index_sig){
+      plot(qs.results,
+           path.index = i,
+           col = "black",
+           xlim = c(-1,1),
+           ylim = c(0,10),
+           xlab = "Gene Module Activity",
+           main = names(geneSetDB)[i]
+      )
+      text(0.2,
+           1,
+           paste("p value =",
+                 round(pdf.pVal(qs.results)[i], digits = 3),
+                 sep = " "))
+      abline(v = 0, lty = 2)
+    }
   }
-  dev.off()
+
 
 }
 

@@ -1,0 +1,160 @@
+---
+title: "HIPC ImmuneSignatures Project - Full analysis pipeline using data from ImmuneSpace"
+authors: "HIPC ImmuneSignatures Project Collaborators"
+maintainer: "Evan Henrich, Gottardo Lab @ Fred Hutchinson Cancer Research Center"
+contact: "ehenrich@fredhutch.org"
+created: "January 2017"
+output: html_document
+---
+# NOTE: This markdown file is streamlined to only run the default parameter values that were
+# used in the original work by the HIPC ImmuneSignatures collaborators.  However, interested 
+# users may run the main function 'hipc_run_full_pipeline()' in the console and follow prompts 
+# to change these parameters and see different outcomes.
+
+```{r include=FALSE, warning=FALSE}
+library(ImmSigPkg)
+
+studies <- c("SDY212", "SDY63", "SDY404", "SDY400", "SDY80", "SDY67")
+
+# Setup initial directory structure
+ImmSig_dir <- file.path(getwd(),"ImmSig_Analysis")
+dir.create(ImmSig_dir)
+
+# 1. Extract and pre-process data from ImmuneSpace, ImmPort, or GEO databases
+pp_dir <- file.path(ImmSig_dir,"PreProc_Data")
+dir.create(path = pp_dir)
+
+hai_dir <- file.path(pp_dir,"HAI")
+dir.create(path = hai_dir)
+
+ge_dir <- file.path(pp_dir,"GE")
+dir.create(path = ge_dir)
+
+rawdata_dir <- file.path(pp_dir,"rawdata")
+dir.create(path = rawdata_dir)
+
+yale.anno <- "original"
+sdy80.process <- FALSE
+sdy80.anno <- "original"
+sdy80.norm <- FALSE
+    
+for(sdy in studies){
+    if( !(sdy %in% c("SDY400","SDY80")) | (sdy == "SDY80" & sdy80.process == TRUE) ){
+        makeGE(sdy, user, pwd,
+               yale.anno = yale.anno,
+               sdy80.anno = sdy80.anno,
+               sdy80.norm = sdy80.norm,
+               output_dir = ge_dir,
+               rawdata_dir = rawdata_dir)
+        makeHAI(sdy, output_dir = hai_dir)
+        makeDemo(sdy, output_dir = ge_dir)
+    }else if(sdy == "SDY400"){
+      makeHAI(sdy, output_dir = hai_dir)
+      makeDemo(sdy, output_dir = ge_dir)
+    }
+  }
+```
+#--------PreProc-Markdown-Output--------------------------------------------
+********************************************************************************************
+Pre-processing of HIPC Immunesignatures parameters:
+## `r paste0("Yale Studies Gene Expression Annotation: ", yale.anno)
+## `r paste0("Processing of SDY80/CHI-nih from IS rawdata: ", sdy80.process)
+## `r paste0("SDY80/CHI-nih Gene Expression Annotation: ", sdy80.anno)
+## `r paste0("SDY80/CHI-nih GE normalization via pipeleine: ", sdy80.norm)
+
+Notes:
+1. Gene expression annotation methods:
+- original = using the original pre-processed GE table from HIPC collaborators to generate
+  a hash of Probe IDs as keys and Gene Symbols as values.  For the Yale Studies, this method
+  means that the annotation is based on the GE table provided from the Illumina sequencing
+  machine at the time of the run.  For SDY80/CHI-nih, the information is from the Affymetrix
+  annotation done at the time.
+- library = the use of a bioconductor library.  For Yale Studies, this was illuminahumanv4.db.
+  For SDY80, it was hugene10sttranscriptcluster.db.
+- manifest = Uses the manifest available from the Illumina website which consists of all historic
+  probeIDs.  In the case of the Yale Studies, this generates complete mapping, whereas the 
+  original table has only partial mapping and the library even less.
+
+2. SDY80 / CHI-nih normalization
+- In the original code used to develop the manuscript, The study's rawdata from the GEO database 
+  has been log2 transformed, but is not normalized in the same was as the discovery studies 
+  (i.e. preprocessCore::normalize.quantiles).  Therefore sdy80.norm is FALSE by default.  However,
+  the user may set it to TRUE and use the same normalization procedure as the other studies.
+
+*********************************************************************************************
+#---------------------------------------------------------------------------
+
+```{r include=FALSE, warning=FALSE}
+
+# Step 2: Combine pre-processed files into Rds (BioConductor eset)
+rds_dir <- file.path(ImmSig_dir, "Rds_data")
+dir.create(path = rds_dir)
+
+combined_hai <- combine_hai_data(hai_dir, sdy80.process, output_dir = rds_dir)
+for(sdy in studies){
+  make_rds(sdy, ge_dir, sdy80.process, combined_hai, output_dir = rds_dir)
+}
+
+# Step 3: Run meta analysis script
+output_dir <- file.path(ImmSig_dir, "meta_analysis_output")
+dir.create(path = output_dir)
+
+FDR.cutoff <- 0.5
+pvalue.cutoff <- 0.01
+endPoint <- "fc_res_max_d30"
+adjusted <- FALSE
+baselineOnly <- TRUE
+indiv_rds <- FALSE
+```
+
+```{r, warning=FALSE}
+meta_analysis(geneSetDB = geneSetDB,
+                  rds_data_dir = rds_dir,
+                  cohort = "young",
+                  FDR.cutoff = FDR.cutoff,
+                  pvalue.cutoff = pvalue.cutoff,
+                  endPoint = endPoint,
+                  adjusted = adjusted,
+                  baselineOnly = baselineOnly,
+                  indiv_rds = indiv_rds,
+                  markdown = T,
+                  output_dir = output_dir)
+
+meta_analysis(geneSetDB = geneSetDB,
+                  rds_data_dir = rds_dir,
+                  cohort = "old",
+                  FDR.cutoff = FDR.cutoff,
+                  pvalue.cutoff = pvalue.cutoff,
+                  endPoint = endPoint,
+                  adjusted = adjusted,
+                  baselineOnly = baselineOnly,
+                  indiv_rds = indiv_rds,
+                  markdown = T,
+                  output_dir = output_dir)
+```
+#---------RMarkdown-Meta-Analysis-Output--------------------------------------------------
+***************************************************************************************
+Meta-Analysis of HIPC ImmuneSignatures Parameters (both cohorts - young / old:
+  
+## `r paste0("FDR.cutoff = ", FDR.cutoff)
+## `r paste0("pvalue.cutoff = ", pvalue.cutoff)
+## `r paste0("endPoint = ", Endpoint
+## `r paste0("adjusted = ", adjusted
+## `r paste0("baselineOnly = ", baselineOnly)
+## `r paste0("indiv_rds = ", indiv_rds)
+## `r paste0("geneSetDB = ", geneSetDB)
+
+Explanation of Parameters:
+- FDR.cutoff = Cut off point for q-values, in code 'combined.q <- p.adjust(combined.p, method="BH")'
+- pvalue.cutoff = Cut off point for p-values when selecting gene pathways as 'significant' from the
+  discovery studies. In code, 'combined.p <- pdf.pval(combinePDFs(quSageObjList, n.points = 2^14))' 
+- endPoint = the HAI column used for labeling "responders" and "non-responders" to a vaccine.  The user
+  has the option of fc_res_max_d30 or fc_res_max_d20, which select either the 30% / 70% points for 
+  discretization or 20% / 80% respectively.
+- adjusted = If TRUE, selects the age-adjusted gene expression values for use in calculations.
+- baselineOnly = If TRUE, uses only day zero gene expression values in calculations.
+- indiv_rds = If TRUE, outputs the rds files for the individual studies as part of the output
+- geneSetDB = The file used for gene set definition.
+***************************************************************************************
+#-----------------------------------------------------------------------------------------
+

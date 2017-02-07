@@ -59,14 +59,21 @@ capwords <- function(s, strict = FALSE) {
 
 
 #----------------MAIN METHODS-----------------------------------------------------------------
-combine_hai_data <- function(hai_dir, output_dir){
+#' Function creates combined hai table and rds file from all six studies
+#'
+#' @param hai_dir Directory holding HAI data tables
+#' @param sdy80.process Process SDY80, TRUE, or use table from original HIPC work, FALSE
+#' @param output_dir Output Directory
+#' @export
+combine_hai_data <- function(hai_dir, sdy80.process, output_dir){
   file_list <- unlist(lapply(hai_dir,
                             list.files,
                             recursive = TRUE,
                             full.names = TRUE))
 
-  # for temp purposes:
-  file_list <- c(file_list, "PreProc_Data/HAI/CHI-nih_combined_hai_titer_table.txt")
+  if(sdy80.process == F){
+    file_list <- c(file_list, paste0(hai_dir,"/CHI-nih_combined_hai_titer_table.txt"))
+  }
 
   message("************* MAKING COMBINED HAI RDS ************************")
 
@@ -94,11 +101,11 @@ combine_hai_data <- function(hai_dir, output_dir){
       message("    -> Processing ", mfc_base[i], ": ", basename(f))
 
       # NTS: Edit back to no conditional once CHI hai sorted out
-      if(sdy != "CHI"){
-        hai <- read.table(f, header = TRUE, sep = "\t", row.names = 1L)
-      }else{
+      if(sdy == "CHI" & sdy80.process == F){
         hai <- as.data.frame(orig_chi_hai)
         rownames(hai) <- hai$subject
+      }else{
+        hai <- read.table(f, header = TRUE, sep = "\t", row.names = 1L)
       }
 
       subjects <<- unique(c(subjects, rownames(hai)))
@@ -142,8 +149,15 @@ combine_hai_data <- function(hai_dir, output_dir){
   return(hai)
 }
 
-
-make_rds <- function(sdy, ge_dir, combined_hai, output_dir){
+#' Function to generate expressionSet object and save as Rds file
+#'
+#' @param sdy Study
+#' @param ge_dir Directory holding gene expression data tables
+#' @param sdy80.process Process SDY80, TRUE, or use table from original HIPC work, FALSE
+#' @param combined_hai Combined hai data frame
+#' @param output_dir Output directory
+#' @export
+make_rds <- function(sdy, ge_dir, sdy80.process, combined_hai, output_dir){
 
   message(paste0("**************** Processing ", sdy, " *******************"))
 
@@ -156,7 +170,7 @@ make_rds <- function(sdy, ge_dir, combined_hai, output_dir){
   }
 
   # expression data
-  if(sdy == "SDY80"){
+  if(sdy == "SDY80" & sdy80.process == F){
     e <- as.data.frame(orig_chi_GE)
   }else if(sdy == "SDY400"){
     e <- as.data.frame(orig_400_GE)
@@ -203,39 +217,26 @@ make_rds <- function(sdy, ge_dir, combined_hai, output_dir){
   eset$Condition <- factor(m[, 7L])
 
   if( file.exists(pfile <- gsub("GEMatrix", "demographics", ge_file, fixed = TRUE)) ){
-    # NTS: edit / remove conditional when CHI is updated
     p <- read.table(pfile, sep = "\t", header = TRUE)
-    p_subjectID <- as.character(p[, 1L])
-    with_annot <- subjectID %in% p_subjectID
-    message(sprintf("    - %s samples | %s/%s with annotation [%s available subjects]",
-                    ncol(eset), sum(with_annot), ncol(eset), nrow(p)))
-    if( !all(with_annot) ){
-      stop("Missing sample annotation for ", paste0(sampleNames(eset)[!with_annot], collapse = ", "))
-    }
-    p <- p[match(subjectID, p_subjectID), ]
-    # unifromise
-    names(p) <- capwords(names(p))
-    p <- cbind(pData(eset), p)
-    rownames(p) <- sampleNames(eset)
-    pData(eset) <- droplevels(p)
-  }else if(sdy == "SDY80" | sdy == "CHI-nih"){
+  }else if( (sdy == "SDY80" | sdy == "CHI-nih") & sdy80.process == F ){
     p <- orig_chi_demo
-    p_subjectID <- as.character(p[, 1L])
-    with_annot <- subjectID %in% p_subjectID
-    message(sprintf("    - %s samples | %s/%s with annotation [%s available subjects]",
-                    ncol(eset), sum(with_annot), ncol(eset), nrow(p)))
-    if( !all(with_annot) ){
-      stop("Missing sample annotation for ", paste0(sampleNames(eset)[!with_annot], collapse = ", "))
-    }
-    p <- p[match(subjectID, p_subjectID), ]
-    # unifromise
-    names(p) <- capwords(names(p))
-    p <- cbind(pData(eset), p)
-    rownames(p) <- sampleNames(eset)
-    pData(eset) <- droplevels(p)
   }else{
     warning("No phenotypic data for ", sdy)
   }
+
+  p_subjectID <- as.character(p[, 1L])
+  with_annot <- subjectID %in% p_subjectID
+  message(sprintf("    - %s samples | %s/%s with annotation [%s available subjects]",
+                  ncol(eset), sum(with_annot), ncol(eset), nrow(p)))
+  if( !all(with_annot) ){
+    stop("Missing sample annotation for ", paste0(sampleNames(eset)[!with_annot], collapse = ", "))
+  }
+  p <- p[match(subjectID, p_subjectID), ]
+  # uniformise
+  names(p) <- capwords(names(p))
+  p <- cbind(pData(eset), p)
+  rownames(p) <- sampleNames(eset)
+  pData(eset) <- droplevels(p)
 
   # add HAI to the phenotypic data
   if(sdy != "SDY80"){

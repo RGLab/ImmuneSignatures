@@ -139,12 +139,12 @@ drop_cols <- function(df, cols_to_drop){
 
 #-----Main method--------------
 
-# For IS driven version
+#' Function to generate HAI data table from ImmuneSpace Connection
+#'
+#' @param sdy Study
+#' @param output_dir output directory
+#' @export
 makeHAI <- function(sdy, output_dir){
-
-  # Setup directory vars
-  # wk_dir <- getwd()
-  # hai_dir <- file.path(wk_dir,"RDSGen/HAI_preproc_data")
 
   # Get rawdata from ImmuneSpace Connection or file (SDY80)
   # SDY80's IS data is not the same as original because observations were only allowed

@@ -12,16 +12,13 @@
 #' @param rawdata_dir a path for directory to download rawdata into
 #' @export
 hipc_preprocess <- function(studies, hai_dir, ge_dir, rawdata_dir, orig_params = T){
-  # get user input
-  user <- readline(prompt = "Username for ImmuneSpace: ")
-  pwd <- readline(prompt = "Password for ImmuneSpace: ")
 
   if(orig_params == F){
     yale.anno <- readline(prompt =
                             "Yale Studies' Gene Annotation: [H = HIPC manuscript, l = R library, m = Illumina manifest]  ")
     yale.anno <- ifelse(yale.anno %in% c("H", "h", ""), "o", yale.anno)
     sdy80.process <- readline(prompt =
-                                "Process SDY80 rawdata or use pre-processed tables from HIPC manuscript? [p = process / H = HIPC manuscript] ")
+                                "Process SDY80 raw data or use manuscript tables? [p = process / H = HIPC manuscript] ")
     sdy80.process <- ifelse(sdy80.process %in% c("H", "h", ""), FALSE, TRUE)
 
     if(sdy80.process == TRUE){
@@ -48,7 +45,7 @@ hipc_preprocess <- function(studies, hai_dir, ge_dir, rawdata_dir, orig_params =
   for(sdy in studies){
     if( !(sdy %in% c("SDY400","SDY80")) | (sdy == "SDY80" & sdy80.process == TRUE) ){
         print(paste0("Generating GE for ", sdy))
-        makeGE(sdy, user, pwd,
+        makeGE(sdy,
                yale.anno = yale.anno,
                sdy80.anno = sdy80.anno,
                sdy80.norm = sdy80.norm,
@@ -65,6 +62,7 @@ hipc_preprocess <- function(studies, hai_dir, ge_dir, rawdata_dir, orig_params =
       makeDemo(sdy, output_dir = ge_dir)
     }
   }
+  return(sdy80.process)
 }
 
 #' Generates rds objects from studies given the study names and directories holding the rawdata.
@@ -74,12 +72,12 @@ hipc_preprocess <- function(studies, hai_dir, ge_dir, rawdata_dir, orig_params =
 #' @param ge_dir a path for the preprocessed GE and demographic data
 #' @param rds_dir a path for the output files (rds)
 #' @export
-hipc_make_rds <- function(studies, hai_dir, ge_dir, rds_dir){
+hipc_make_rds <- function(studies, hai_dir, ge_dir, sdy80.process, rds_dir){
   message("Now combining files for each study into rds / eset file")
   message("\n")
-  combined_hai <- combine_hai_data(hai_dir, output_dir = rds_dir)
+  combined_hai <- combine_hai_data(hai_dir, sdy80.process, output_dir = rds_dir)
   for(sdy in studies){
-    make_rds(sdy, ge_dir, combined_hai, output_dir = rds_dir)
+    make_rds(sdy, ge_dir, sdy80.process, combined_hai, output_dir = rds_dir)
   }
 }
 
@@ -106,33 +104,36 @@ hipc_meta_analysis <- function(rds_dir, cohort, orig_params = T, output_dir){
     indiv_rds <- readline(prompt = "output individual Rds of gene module analysis? [T / F]  ")
     indiv_rds <- ifelse(indiv_rds %in% c(T, TRUE, "t", t), TRUE, FALSE)
 
-    message(paste0("Running meta analysis for ", cohort, " cohort"))
-    message("\n")
-    meta_analysis(geneSetDB = geneSetDB,
-                  rds_data_dir = rds_dir,
-                  cohort = cohort,
-                  FDR.cutoff = FDR.cutoff,
-                  pvalue.cutoff = pvalue.cutoff,
-                  endPoint = endPoint,
-                  adjusted = adjusted,
-                  baselineOnly = baselineOnly,
-                  indiv_rds = indiv_rds,
-                  output_dir = output_dir)
   }else{
-    message(paste0("Running meta analysis for ", cohort, " cohort"))
-    meta_analysis(geneSetDB = geneSetDB,
-                  rds_data_dir = rds_dir,
-                  cohort = cohort,
-                  output_dir = output_dir)
+    FDR.cutoff <- 0.5
+    pvalue.cutoff <- 0.01
+    endPoint <- "fc_res_max_d30"
+    adjusted <- FALSE
+    baselineOnly <- TRUE
+    indiv_rds <- FALSE
   }
+
+  message(paste0("Running meta analysis for ", cohort, " cohort"))
+  message("\n")
+
+  meta_analysis(geneSetDB = geneSetDB,
+                rds_data_dir = rds_dir,
+                cohort = cohort,
+                FDR.cutoff = FDR.cutoff,
+                pvalue.cutoff = pvalue.cutoff,
+                endPoint = endPoint,
+                adjusted = adjusted,
+                baselineOnly = baselineOnly,
+                indiv_rds = indiv_rds,
+                markdown = F,
+                output_dir = output_dir)
 }
 
 #----------------MAIN METHOD-----------------------------------------
 #' Runs full pipeline from start to finish with user input required at certain points
 #' @importFrom xml2 read_html
 #' @importFrom XML xmlToList xmlParse
-#' @importFrom plyr ldply l_ply
-#' @import dplyr
+#' @importFrom plyr ldply l_ply llply quickdf
 #' @importFrom httr GET authenticate write_disk
 #' @importFrom stringr str_sub str_match str_trim
 #' @importFrom data.table fread setnames
@@ -140,6 +141,8 @@ hipc_meta_analysis <- function(rds_dir, cohort, orig_params = T, output_dir){
 #' @importFrom preprocessCore normalize.quantiles
 #' @importFrom GEOquery gunzip getGEO Table
 #' @importFrom tibble as_tibble
+#' @importFrom RCurl getCurlHandle basicTextGatherer curlPerform
+#' @import dplyr
 #' @import qusage
 #' @import knitr
 #' @import Biobase
@@ -153,26 +156,30 @@ hipc_meta_analysis <- function(rds_dir, cohort, orig_params = T, output_dir){
 hipc_full_pipeline <- function(){
 
   studies <- c("SDY212", "SDY63", "SDY404", "SDY400", "SDY80", "SDY67")
-  directory <- readline(prompt = "Save output files to new directory called 'ImmSig_Analysis'? [ T / f ] ")
+  message(paste0("Your working directory is ", getwd()))
+  directory <- readline(prompt = "Use current working directory or different path? [ T / f ] ")
   if(directory %in% c(T, "T", "t", "")){
-    wkdir <- file.path(getwd(),"ImmSig_Analysis")
-    dir.create(path = wkdir)
+    ImmSig_dir <- file.path(getwd(),"ImmSig_Analysis")
   }else if(directory %in% c(F, "F", "f")){
     wkdir <- readline(prompt = "Please specify full path for directory where you want to save files: ")
     if(!dir.exists(wkdir)){
       stop("Directory does not exist. Exiting analysis")
+    }else{
+      ImmSig_dir <- file.path(wkdir,"ImmSig_Analysis")
     }
   }else{
     stop("Terminating: direction not understood")
   }
-
+  message("Creating Subdirectory 'ImmSig_Analysis' for output files")
+  dir.create(ImmSig_dir)
+  message(paste0("path to 'ImmSig_Analysis: ", ImmSig_dir))
 
   # 1. Extract and pre-process data from ImmuneSpace, ImmPort, or GEO databases
   gen_files <- readline(prompt = "Generate and preprocess rawdata? [T / f]  ")
   if(gen_files %in% c(T, "T", "t", "")){
     message("Creating PreProc_Data directory and sub-directories ... ")
     # create preproc dir and subdirectories
-    pp_dir <- file.path(wkdir,"PreProc_Data")
+    pp_dir <- file.path(ImmSig_dir,"PreProc_Data")
     dir.create(path = pp_dir)
 
     hai_dir <- file.path(pp_dir,"HAI")
@@ -187,18 +194,18 @@ hipc_full_pipeline <- function(){
     orig_params <- readline(prompt = "Use original parameters from HIPC manuscript? [ T / f ] ")
     orig_params <- ifelse(orig_params %in% c(T, "", "t", "T"), TRUE, FALSE)
 
-    hipc_preprocess(studies, hai_dir, ge_dir, rawdata_dir, orig_params)
+    sdy80.process <- hipc_preprocess(studies, hai_dir, ge_dir, rawdata_dir, orig_params)
   }
 
   cat("Moving on to RDS Generation")
 
   # Step 2: Combine pre-processed files into Rds (BioConductor eset)
   run_rds <- readline(prompt = "Are you ready to run rds generation file? [T / f]  ")
-  rds_dir <- file.path(wkdir,"Rds_data")
+  rds_dir <- file.path(ImmSig_dir, "Rds_data")
   dir.create(path = rds_dir)
 
   if(run_rds %in% c(T, "T", "t", "")){
-    hipc_make_rds(studies, hai_dir, ge_dir, rds_dir)
+    hipc_make_rds(studies, hai_dir, ge_dir, sdy80.process, rds_dir)
   }
 
   cat("Moving on to Meta Analysis")
@@ -206,7 +213,7 @@ hipc_full_pipeline <- function(){
   # Step 3: Run meta analysis script
   run_meta <- readline(prompt = "Are you ready to run meta analysis? [T / f]  ")
   if(run_meta %in% c(T, "T", "t", "")){
-    output_dir <- file.path(wkdir,"meta_analysis_output")
+    output_dir <- file.path(ImmSig_dir, "meta_analysis_output")
     dir.create(path = output_dir)
     hipc_meta_analysis(rds_dir, cohort = "young", orig_params = T, output_dir = output_dir)
     hipc_meta_analysis(rds_dir, cohort = "old", orig_params = T, output_dir = output_dir)

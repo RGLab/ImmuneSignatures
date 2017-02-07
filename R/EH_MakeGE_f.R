@@ -17,6 +17,7 @@
 #
 # library(ImmuneSpaceR)
 # library(httr)
+# library(Rcurl)
 # library(XML)
 # library(xml2)
 # library(R.utils)
@@ -39,8 +40,7 @@
 
 #------HELPER METHODS ------------------------------------------------------
 # Get gene expression file names from ImmuneSpace and return as data frame
-get_gef <- function(sdy){
-  con <- CreateConnection(sdy)
+get_gef <- function(con, sdy){
   gef <- con$getDataset("gene_expression_files")
   if(sdy != "SDY80"){
     gef <- gef[ which(gef$file_info_name != "NA" & gef$study_time_collected == 0),  ]
@@ -48,35 +48,48 @@ get_gef <- function(sdy){
   return(gef)
 }
 
-# download microarray or gene expression files from ImmuneSpace and return list of file paths
-get_is_files <- function(gef, sdy, rawdata_dir, user, pwd){
-  inputFiles <- unique(gef$file_info_name)
+make_handle <- function(con){
+  opts <- con$config$curlOptions
+  opts$netrc <- 1L
+  handle <- getCurlHandle(.opts = opts)
+  return(handle)
+}
 
-  # download files from IS to local machine
-  links <- paste0("https://www.immunespace.org/_webdav/Studies/",
-                  sdy,
-                  "/%40files/rawdata/gene_expression/",
-                  inputFiles)
+# download microarray or gene expression files from ImmuneSpace and return list of tables
+dl_IS_GE <- function(handle, ge_flnms, sdy, rawdata_dir){
+  fl_list <- llply(ge_flnms, .fun = function(x){
+    func <- basicTextGatherer()
+    link <- paste0("https://www.immunespace.org/_webdav/Studies/",
+                   sdy,
+                   "/%40files/rawdata/gene_expression/",
+                   x)
 
-  # only setting to an object to limit output to console
-  dump <- sapply(links, FUN = function(x){
-    GET(url = x,
-        write_disk(file.path(rawdata_dir,basename(x)),
-        overwrite = T),
-        authenticate(user,pwd))
-    })
-  inputFiles <- file.path(rawdata_dir, inputFiles)
-  return(inputFiles)
+    curlPerform(url = link, curl = handle, writefunction = func$update)
+    fl <- file.path(rawdata_dir, x)
+    write(func$value(), file = fl)
+    return(fl)
+  })
+  return(fl_list)
+}
+
+get_GE_vals <- function(fl_list, subids){
+  vals_list <- lapply(fl_list, FUN = function(x){
+    vals <- read.table(x, header = T, stringsAsFactors = F, sep = "\t", fill = T)
+    vals <- vals[order(vals[,1]),]
+    vals <- vals[,2]
+    return(vals)
+  })
+  names(vals_list) <- subids
+  return(vals_list)
 }
 
 # for SDY80, need to build matrix from individual accessions
-make_GEOmatrix <- function(destdir, gsm_list){
+get_GEOvals <- function(destdir, gsm_list){
   val_list <- lapply(gsm_list, FUN = function(x){
     expr_vals <- Table(getGEO(x, destdir = ))[,2]
   })
-  expr_mx <- data.frame(matrix(unlist(val_list), ncol=length(gsm_list), byrow=F))
-  colnames(expr_mx) <- gsm_list
-  return(expr_mx)
+  names(val_list) <- gsm_list
+  return(val_list)
 }
 
 # download gene expression files from immport for yale studies
@@ -176,9 +189,16 @@ write_out <- function(probe_ids, gene_syms, norm_map_exprs, sdy, output_dir){
 
 
 #---------MAIN METHOD--------------------------------------------------------
+#' Function to generate Gene Expression Table from ImmuneSpace Connection
+#'
+#' @param sdy study
+#' @param yale.anno Yale Studies gene symbol annotation original, library, or manifest
+#' @param sdy80.anno SDY80 gene symbol annotation original or library
+#' @param sdy80.norm normalize SDY80 expression values according to pipeline, default FALSE
+#' @param output_dir output director
+#' @param rawdata_dir directory for holding rawdata downloads
+#' @export
 makeGE <- function(sdy,
-                   user,
-                   pwd,
                    yale.anno = "original",
                    sdy80.anno = "original",
                    sdy80.norm = F,
@@ -192,22 +212,24 @@ makeGE <- function(sdy,
 
   # Get raw data and process it uniquely for each study
   if(sdy == "SDY212" | sdy == "SDY67"){
-    # Get filenames from Immunespace and then download
-    gef <- get_gef(sdy)
-    inputFiles <- get_is_files(gef, sdy, rawdata_dir, user, pwd)
+    # build links from Immunespace and then download
+    con <- CreateConnection(sdy)
+    gef <- get_gef(con, sdy)
+    handle <- make_handle(con)
+    fl_list <- dl_IS_GE(handle, unique(gef$file_info_name), sdy, rawdata_dir)
 
     if(sdy == "SDY212"){
       # Clean and Prep
-      rawdata <- fread(inputFiles, header = TRUE)
+      rawdata <- read.table(fl_list[[1]], header = T, stringsAsFactors = F, sep = "\t", fill = T)
 
       # remove gene with NA values. These NAs are found in ImmPort as well.
       # ImmPort staff (Patrick.Dunn@nih.gov) said this was an unresolved issue
       # with ticket "HDB-13" last discussed in October 2015 with study authors.
-      rawdata <- rawdata[ -c(which(rawdata$PROBE_ID == "ILMN_2137536")),]
-      probe_ids <- rawdata[, PROBE_ID]
-      gene_syms <- rawdata[ , SYMBOL]
+      rawdata <- rawdata[ -c(which(rawdata[,"PROBE_ID"] == "ILMN_2137536")), ]
+      probe_ids <- rawdata[, "PROBE_ID"]
+      gene_syms <- rawdata[ , "SYMBOL"]
       sigcols <- grep("Signal", colnames(rawdata), value = TRUE)
-      rawdata <- rawdata[, sigcols, with = FALSE]
+      rawdata <- rawdata[ , sigcols ]
       setnames(rawdata, gsub(".AVG.*$", "", colnames(rawdata)))
 
       # normalize, then remove subjects not found in original file
@@ -215,37 +237,22 @@ makeGE <- function(sdy,
       final_expr_vals <- remove_subs(final_expr_vals, c("SUB134242_d0","SUB134267_d0"))
 
     }else if(sdy == "SDY67"){
-      # inputFiles here only contain 1 subject worth of data per file, therefore
-      # need to iterate through and build a master file with all subjects to return.
-      # NOTE: no normalization was done on the original file and that is mimicked her.
-      gs_tbl <- fread(inputFiles[[1]])
-      gs_tbl$GENE_SYMBOL <- toupper(gs_tbl$GENE_SYMBOL)
-      gs_tbl <- gs_tbl[ order(GENE_SYMBOL),]
-      gene_syms <- gs_tbl$GENE_SYMBOL
-
-      expr_vals_list <- lapply(inputFiles, FUN = function(x){
+      # Build correct subids for colnames to have both ID and day value
+      subids <- unname(sapply(gef$file_info_name, FUN = function(x){
         fname <- basename(x)
         targ_row <- gef[which(gef$file_info_name == fname),]
         subid <- substr(targ_row$participant_id[[1]],1,9)
-        day_coll <- as.integer(targ_row$study_time_collected)
-        subid <- paste0(subid,"_d",day_coll)
+        day_val <- as.integer(targ_row$study_time_collected)
+        subid <- paste0(subid, "_d", day_val)
+        return(subid)
+      }))
 
-        #read in the table and relabel colnames
-        tmp <- fread(x)
-        colnames(tmp) <- c("SYMBOL",subid)
-        tmp$SYMBOL <- toupper(tmp$SYMBOL)
-        tmp <- tmp[ order(SYMBOL),]
+      raw_smpl <- read.table(fl_list[[1]], header = T, stringsAsFactors = F, sep = "\t", fill = T)
+      gene_syms <- sort(toupper(raw_smpl[,1]))
+      probe_ids <- seq(from = 1, to = length(gene_syms), by = 1) # Like HIPC manuscript, probe_ids are row number
 
-        # make sure the gene symbol vec for the curr subject matches original
-        if(!all.equal(tmp$SYMBOL,gs_tbl$GENE_SYMBOL)){
-          stop(paste0("Gene Symbols in ",fname,
-                      " do not match those in first file. Please check before re-running."))
-        }
-
-        # pull out expr values and return as vec
-        return(tmp[,2])
-      })
-      final_expr_vals <- as.data.frame(do.call(cbind, expr_vals_list))
+      val_list <- get_GE_vals(fl_list, subids)
+      rawdata <- quickdf(val_list)
 
       # these subjects were removed from original file because they were not processed
       # at the same time as the others and had a significant batch effect.
@@ -257,9 +264,7 @@ makeGE <- function(sdy,
                     "SUB113555_d0","SUB113558_d0","SUB113559_d0","SUB113561_d0","SUB113566_d0",
                     "SUB113567_d0","SUB113568_d0","SUB113571_d0","SUB113572_d0","SUB113582_d0",
                     "SUB113583_d0","SUB113588_d0","SUB113595_d0","SUB113610_d0")
-      final_expr_vals <- remove_subs(final_expr_vals, subs_rm)
-
-      probe_ids <- seq(from = 1, to = length(gene_syms), by = 1) # Like HIPC manuscript, probe_ids are simply the row number
+      final_expr_vals <- remove_subs(rawdata, subs_rm)
       sdy <- "SDY67-batch2" # to be consistent with naming for Datasets.R
     }
 
@@ -320,9 +325,11 @@ makeGE <- function(sdy,
 
   }else if(sdy == "SDY80"){
     # get data via scraping geo site and parsing into list of tables
-    gef <- get_gef(sdy)
+    con <- CreateConnection(sdy)
+    gef <- get_gef(con, sdy)
     probe_ids <- suppressMessages(Table(getGEO(gef$geo_accession[[1]]))[,1])
-    rawdata <- suppressMessages(make_GEOmatrix(destdir = rawdata_dir, gsm_list = gef$geo_accession))
+    val_list <- suppressMessages(get_GEOvals(destdir = rawdata_dir, gsm_list = gef$geo_accession))
+    rawdata <- quickdf(val_list)
     rawdata <- cbind(probe_ids, rawdata)
 
     if(sdy80.anno == "original"){
@@ -396,3 +403,45 @@ makeGE <- function(sdy,
 #
 # # return list of tables
 # return(tbl_list)
+
+# # For SDY80, SDY67 need to build matrix from list of vectors holding GE values
+# list2matrix <- function(val_list, colnms){
+#   expr_mx <- data.frame(matrix(unlist(val_list), ncol=length(colnms), byrow=F))
+#   colnames(expr_mx) <- colnms
+#   return(expr_mx)
+# }
+
+#NTS - need to fix all this below to work! (expr_mx should be a matrix of values with correct colnames)
+# So, prob have to
+
+# inputFiles here only contain 1 subject worth of data per file, therefore
+# need to iterate through and build a master file with all subjects to return.
+# NOTE: no normalization was done on the original file and that is mimicked her.
+# gs_tbl <- fread(inputFiles[[1]])
+# gs_tbl$GENE_SYMBOL <- toupper(gs_tbl$GENE_SYMBOL)
+# gs_tbl <- gs_tbl[ order(GENE_SYMBOL),]
+# gene_syms <- gs_tbl$GENE_SYMBOL
+#
+# expr_vals_list <- lapply(inputFiles, FUN = function(x){
+#   fname <- basename(x)
+#   targ_row <- gef[which(gef$file_info_name == fname),]
+#   subid <- substr(targ_row$participant_id[[1]],1,9)
+#   day_coll <- as.integer(targ_row$study_time_collected)
+#   subid <- paste0(subid,"_d",day_coll)
+#
+#   #read in the table and relabel colnames
+#   tmp <- fread(x)
+#   colnames(tmp) <- c("SYMBOL",subid)
+#   tmp$SYMBOL <- toupper(tmp$SYMBOL)
+#   tmp <- tmp[ order(SYMBOL),]
+#
+#   # make sure the gene symbol vec for the curr subject matches original
+#   if(!all.equal(tmp$SYMBOL,gs_tbl$GENE_SYMBOL)){
+#     stop(paste0("Gene Symbols in ",fname,
+#                 " do not match those in first file. Please check before re-running."))
+#   }
+#
+#   # pull out expr values and return as vec
+#   return(tmp[,2])
+# })
+# final_expr_vals <- as.data.frame(do.call(cbind, expr_vals_list))
