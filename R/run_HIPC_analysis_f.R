@@ -131,20 +131,18 @@ hipc_meta_analysis <- function(rds_dir, cohort, orig_params = T, output_dir){
 
 #----------------MAIN METHOD-----------------------------------------
 #' Runs full pipeline from start to finish with user input required at certain points
-#' @importFrom xml2 read_html
-#' @importFrom XML xmlToList xmlParse
 #' @importFrom plyr ldply l_ply llply quickdf
-#' @importFrom httr GET authenticate write_disk
+#' @importFrom httr GET write_disk
 #' @importFrom stringr str_sub str_match str_trim
 #' @importFrom data.table fread setnames
 #' @importFrom hash hash has.key
 #' @importFrom preprocessCore normalize.quantiles
-#' @importFrom GEOquery gunzip getGEO Table
+#' @importFrom GEOquery gunzip
 #' @importFrom tibble as_tibble
 #' @importFrom RCurl getCurlHandle basicTextGatherer curlPerform
+#' @importFrom knitr kable
 #' @import dplyr
 #' @import qusage
-#' @import knitr
 #' @import Biobase
 #' @import hgu133plus2.db
 #' @import DESeq
@@ -213,7 +211,7 @@ hipc_full_pipeline <- function(){
   # Step 3: Run meta analysis script
   run_meta <- readline(prompt = "Are you ready to run meta analysis? [T / f]  ")
   if(run_meta %in% c(T, "T", "t", "")){
-    output_dir <- file.path(ImmSig_dir, "meta_analysis_output")
+    output_dir <- file.path(ImmSig_dir, "Meta_analysis_output")
     dir.create(path = output_dir)
     hipc_meta_analysis(rds_dir, cohort = "young", orig_params = T, output_dir = output_dir)
     hipc_meta_analysis(rds_dir, cohort = "old", orig_params = T, output_dir = output_dir)

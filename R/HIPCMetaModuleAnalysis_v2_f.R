@@ -21,7 +21,7 @@
 # Abstracted this method since duplicated in validation and discovery
 
 ## Combine by gene symbols and select probe with highest average gene expression
-run_qs <- function(eset, gene_symbols, labels, validation, geneSetDB){
+run_qs <- function(eset, gene_symbols, labels, validation, geneSetDB, markdown){
 
   ## Combine by gene symbols and select probe with highest average gene expression
   ## rank probesets by average expression
@@ -54,7 +54,15 @@ run_qs <- function(eset, gene_symbols, labels, validation, geneSetDB){
   }
 
   ## run gene module analysis. 2 is highResponder and 0 is lowResponder
-  qs.results <-  qusage(eset.nodup.final, labels, "2-0", geneSetDB)
+  if(markdown == F){
+    qs.results <-  qusage(eset.nodup.final, labels, "2-0", geneSetDB)
+  }else{
+    # send print statements to 'aux' connection to avoid in Markdown
+    sink("aux")
+    qs.results <-  qusage(eset.nodup.final, labels, "2-0", geneSetDB)
+    sink(NULL)
+  }
+
   return(qs.results)
 }
 
@@ -76,6 +84,7 @@ run_qs <- function(eset, gene_symbols, labels, validation, geneSetDB){
 #' @param indiv_rds Output individual rds files for each discovery study, default = FALSE
 #' @param markdown Set output to go directly to screen for markdown files, default = FALSE
 #' @param output_dir Output directory
+#' @export
 meta_analysis <- function(geneSetDB,
                           rds_data_dir,
                           cohort,
@@ -116,7 +125,7 @@ meta_analysis <- function(geneSetDB,
 
   for(sdy in discoverySDY){
     index.sdy = index.sdy + 1
-    print(paste0("Processing ", sdy, " --- "))
+    if(markdown == F){ print(paste0("Processing ", sdy, " --- ")) }
     dataset_name = paste(sdy, cohort, endPoint, sep="_" )
 
     eset <- getSDY(rds_data_dir = rds_data_dir,
@@ -130,12 +139,14 @@ meta_analysis <- function(geneSetDB,
       ## two subjects from SDY212 has the same subject ID "SUB134307", but
       ## Stanford don't know what happened to this
       ## so, we removed those two entries in data analysis
-      print("Remove duplicated subject 'SUB134307' from SDY212 data analysis.  See Readme for more information.")
+      if(markdown == F) {
+        print("Remove duplicated subject 'SUB134307' from SDY212 data analysis.  See Readme for more information.")
+        }
       SUB134307_index <-  which(pData(eset)['SubjectID'] == "SUB134307")
       eset <- eset[,-SUB134307_index]
     }
 
-    print(summary(pData(eset)[c('Age.class', 'Response', 'Condition')]) )
+    if(markdown == F){ print(summary(pData(eset)[c('Age.class', 'Response', 'Condition')])) }
     gene_symbols  <- as.character(fData(eset)$geneSymbol)
     labels <- as.character(pData(eset)[,endPoint])
 
@@ -144,7 +155,9 @@ meta_analysis <- function(geneSetDB,
                                          gene_symbols,
                                          labels,
                                          validation = F,
-                                         geneSetDB)
+                                         geneSetDB,
+                                         markdown)
+
 
     # save R objects of gene module analysis for each SDY
     if(indiv_rds){
@@ -159,6 +172,7 @@ meta_analysis <- function(geneSetDB,
   ## p values for gene module meta analysis
   combined.p = pdf.pVal(combinePDFsResult)
   combined.q = p.adjust(combined.p, method="BH")
+  index_sig <- intersect(which(combined.q < FDR.cutoff), which(combined.p < pvalue.cutoff))
 
   ## get gene module activity
   combined.PDF = combinePDFsResult$path.PDF
@@ -188,8 +202,6 @@ meta_analysis <- function(geneSetDB,
         width = 6,
         height = 6)
 
-    index_sig <- intersect(which(combined.q < FDR.cutoff), which(combined.p < pvalue.cutoff))
-
     for(i in index_sig){
       plot(combinePDFsResult, path.index = i)
       legend("topleft", legend=c(discoverySDY,"metaAnalysis"),
@@ -200,11 +212,11 @@ meta_analysis <- function(geneSetDB,
     dev.off()
 
   }else{
-    # plot out_matrix
-    kable(out_matrix)
+    cat("\n")
+    cat(paste0("DISCOVERY GROUP RESULTS: ", toupper(cohort), " COHORT"))
+    cat("\n")
 
-    # plot the pdf
-    index_sig <- intersect(which(combined.q < FDR.cutoff), which(combined.p < pvalue.cutoff))
+    print(kable(out_matrix, format = "markdown"))
 
     for(i in index_sig){
       plot(combinePDFsResult, path.index = i)
@@ -222,7 +234,9 @@ meta_analysis <- function(geneSetDB,
   #########################################################################################################
 
 
-  print(paste0("Validate signature gene modules for ", cohort, " ", validation.sdy))
+  if(markdown == F){
+    print(paste0("Validate signature gene modules for", cohort, " cohort, study - ", validation.sdy))
+  }
   dataset_name <- paste(validation.sdy, cohort , endPoint, sep = "_" )
   eset <- getSDY(rds_data_dir = rds_data_dir,
                  sdy = validation.sdy,
@@ -233,18 +247,18 @@ meta_analysis <- function(geneSetDB,
   if(cohort == 'young'){
     # get young samples only
     eset <- eset[, which(pData(eset)['Condition'] == 'd0' & pData(eset)['Age'] < 36)]
-    print(summary(pData(eset)[c('Age.class', 'Response', 'Condition')]) )
+    if(markdown == F){ print(summary(pData(eset)[c('Age.class', 'Response', 'Condition')])) }
     labels <- as.character(pData(eset)[,endPoint])
     gene_symbols <- rownames(eset) <- as.character(fData(eset)$gs)
 
   }else{
-    print(summary(pData(eset)[c('Age.class', 'Response', 'Condition')]) )
+    if(markdown == F){ print(summary(pData(eset)[c('Age.class', 'Response', 'Condition')])) }
     labels <- as.character(pData(eset)[,endPoint])
     gene_symbols  <- as.character(fData(eset)$geneSymbol)
     eset <- exprs(eset)
   }
 
-  qs.results <- run_qs(eset, gene_symbols, labels, validation = T, geneSetDB)
+  qs.results <- run_qs(eset, gene_symbols, labels, validation = T, geneSetDB, markdown)
 
   pvalue <- pdf.pVal(qs.results)[index_sig]
   qvalue <- p.adjust(pvalue, method = "BH")
@@ -284,8 +298,12 @@ meta_analysis <- function(geneSetDB,
     dev.off()
 
   }else{
+    cat("\n")
+    cat(paste0("VALIDATION STUDY RESULTS: ", toupper(cohort), " COHORT"))
+    cat("\n")
+
     # plot out-matrix
-    kable(out_matrix)
+    print(kable(out_matrix, format = "markdown"))
 
     # plot graphs
     for(i in index_sig){
@@ -305,7 +323,6 @@ meta_analysis <- function(geneSetDB,
       abline(v = 0, lty = 2)
     }
   }
-
 
 }
 

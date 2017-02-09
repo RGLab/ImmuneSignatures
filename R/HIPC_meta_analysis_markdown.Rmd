@@ -1,15 +1,23 @@
 ---
-title: "HIPC ImmuneSignatures Project - Full analysis pipeline using data from ImmuneSpace"
+title: "HIPC ImmuneSignatures Project Meta Analysis Using Data from ImmuneSpace"
 authors: "HIPC ImmuneSignatures Project Collaborators"
-maintainer: "Evan Henrich, Gottardo Lab @ Fred Hutchinson Cancer Research Center"
+package developer: "Evan Henrich, Gottardo Lab @ Fred Hutchinson Cancer Research Center"
 contact: "ehenrich@fredhutch.org"
 created: "January 2017"
 output: html_document
 ---
-# NOTE: This markdown file is streamlined to only run the default parameter values that were
-# used in the original work by the HIPC ImmuneSignatures collaborators.  However, interested 
-# users may run the main function 'hipc_run_full_pipeline()' in the console and follow prompts 
-# to change these parameters and see different outcomes.
+
+***
+### January 2017
+### Study Authors: HIPC ImmuneSignature Collaborators
+### Package Developer: Evan Henrich (Gottardo Lab - FHCRC)
+### Contact: ehenrich@fredhutch.org
+
+## EDITOR'S NOTES:
+This markdown file outputs the results of the HIPC ImmuneSignatures Project using the original parameters  
+developed by the collaborators.  Interested users may re-run the full pipeline with different parameters for  
+the raw data pre-processing step, such as gene annotation methods, as well as meta-analysis step, such as  
+p-value or FDR cutoffs.  
 
 ```{r include=FALSE, warning=FALSE}
 library(ImmSigPkg)
@@ -40,7 +48,7 @@ sdy80.norm <- FALSE
     
 for(sdy in studies){
     if( !(sdy %in% c("SDY400","SDY80")) | (sdy == "SDY80" & sdy80.process == TRUE) ){
-        makeGE(sdy, user, pwd,
+        makeGE(sdy,
                yale.anno = yale.anno,
                sdy80.anno = sdy80.anno,
                sdy80.norm = sdy80.norm,
@@ -54,24 +62,27 @@ for(sdy in studies){
     }
   }
 ```
-#--------PreProc-Markdown-Output--------------------------------------------
-********************************************************************************************
-Pre-processing of HIPC Immunesignatures parameters:
-## `r paste0("Yale Studies Gene Expression Annotation: ", yale.anno)
-## `r paste0("Processing of SDY80/CHI-nih from IS rawdata: ", sdy80.process)
-## `r paste0("SDY80/CHI-nih Gene Expression Annotation: ", sdy80.anno)
-## `r paste0("SDY80/CHI-nih GE normalization via pipeleine: ", sdy80.norm)
 
-Notes:
+***
+## PRE-PROCESSING PARAMETERS:
+- **Yale Studies Gene Expression Annotation: ** `r yale.anno`
+- **Processing of SDY80/CHI-nih from IS rawdata: ** `r sdy80.process`
+- **SDY80/CHI-nih Gene Expression Annotation: ** `r sdy80.anno`
+- **SDY80/CHI-nih GE normalization via pipeleine: ** `r sdy80.norm`
+
+## OUTPUT DIRECTORY:
+- `r ImmSig_dir`
+
+### NOTES:
 1. Gene expression annotation methods:
-- original = using the original pre-processed GE table from HIPC collaborators to generate
+- **original** = using the original pre-processed GE table from HIPC collaborators to generate
   a hash of Probe IDs as keys and Gene Symbols as values.  For the Yale Studies, this method
   means that the annotation is based on the GE table provided from the Illumina sequencing
   machine at the time of the run.  For SDY80/CHI-nih, the information is from the Affymetrix
   annotation done at the time.
-- library = the use of a bioconductor library.  For Yale Studies, this was illuminahumanv4.db.
+- **library** = the use of a bioconductor library.  For Yale Studies, this was illuminahumanv4.db.
   For SDY80, it was hugene10sttranscriptcluster.db.
-- manifest = Uses the manifest available from the Illumina website which consists of all historic
+- **manifest** = Uses the manifest available from the Illumina website which consists of all historic
   probeIDs.  In the case of the Yale Studies, this generates complete mapping, whereas the 
   original table has only partial mapping and the library even less.
 
@@ -80,12 +91,16 @@ Notes:
   has been log2 transformed, but is not normalized in the same was as the discovery studies 
   (i.e. preprocessCore::normalize.quantiles).  Therefore sdy80.norm is FALSE by default.  However,
   the user may set it to TRUE and use the same normalization procedure as the other studies.
+  
+3. SDY212 GE data removal
+- SDY212 had two sets of GE data with the same biosample ID.  These sets were removed from analysis
+  because it was unclear why there was a duplicate.  Also, one gene did not have a full set of
+  expression information in the ImmPort file and was also removed.  Questions should be directed to
+  the study authors directly.
 
-*********************************************************************************************
-#---------------------------------------------------------------------------
+***
 
 ```{r include=FALSE, warning=FALSE}
-
 # Step 2: Combine pre-processed files into Rds (BioConductor eset)
 rds_dir <- file.path(ImmSig_dir, "Rds_data")
 dir.create(path = rds_dir)
@@ -96,18 +111,20 @@ for(sdy in studies){
 }
 
 # Step 3: Run meta analysis script
-output_dir <- file.path(ImmSig_dir, "meta_analysis_output")
-dir.create(path = output_dir)
-
+data("geneSetDB")
 FDR.cutoff <- 0.5
 pvalue.cutoff <- 0.01
 endPoint <- "fc_res_max_d30"
 adjusted <- FALSE
 baselineOnly <- TRUE
 indiv_rds <- FALSE
+output_dir <- "Placeholder"
 ```
 
-```{r, warning=FALSE}
+
+## YOUNG COHORT META-ANALYSIS RESULTS
+
+```{r results="markup", echo=FALSE, warning=FALSE, message=FALSE}
 meta_analysis(geneSetDB = geneSetDB,
                   rds_data_dir = rds_dir,
                   cohort = "young",
@@ -119,7 +136,12 @@ meta_analysis(geneSetDB = geneSetDB,
                   indiv_rds = indiv_rds,
                   markdown = T,
                   output_dir = output_dir)
+```
 
+
+## OLD COHORT META-ANALYSIS RESULTS
+
+```{r results="markup", echo=FALSE, warning=FALSE, message=FALSE}
 meta_analysis(geneSetDB = geneSetDB,
                   rds_data_dir = rds_dir,
                   cohort = "old",
@@ -132,29 +154,30 @@ meta_analysis(geneSetDB = geneSetDB,
                   markdown = T,
                   output_dir = output_dir)
 ```
-#---------RMarkdown-Meta-Analysis-Output--------------------------------------------------
-***************************************************************************************
-Meta-Analysis of HIPC ImmuneSignatures Parameters (both cohorts - young / old:
-  
-## `r paste0("FDR.cutoff = ", FDR.cutoff)
-## `r paste0("pvalue.cutoff = ", pvalue.cutoff)
-## `r paste0("endPoint = ", Endpoint
-## `r paste0("adjusted = ", adjusted
-## `r paste0("baselineOnly = ", baselineOnly)
-## `r paste0("indiv_rds = ", indiv_rds)
-## `r paste0("geneSetDB = ", geneSetDB)
 
-Explanation of Parameters:
-- FDR.cutoff = Cut off point for q-values, in code 'combined.q <- p.adjust(combined.p, method="BH")'
-- pvalue.cutoff = Cut off point for p-values when selecting gene pathways as 'significant' from the
+***
+
+## META-ANALYSIS PARAMETERS:
+- **FDR.cutoff: ** `r FDR.cutoff`
+- **pvalue.cutoff: **`r pvalue.cutoff`
+- **endPoint: ** `r endPoint`
+- **adjusted: ** `r adjusted`
+- **baselineOnly: ** `r baselineOnly`
+- **indiv_rds: ** `r indiv_rds`
+- **geneSetDB: ** `r BTM_for_GSEA_20131008.gmt`
+
+## PARAMETERS DEFINITION:
+- **FDR.cutoff** = Cut off point for q-values, in code 'combined.q <- p.adjust(combined.p, method="BH")'
+- **pvalue.cutoff** = Cut off point for p-values when selecting gene pathways as 'significant' from the
   discovery studies. In code, 'combined.p <- pdf.pval(combinePDFs(quSageObjList, n.points = 2^14))' 
-- endPoint = the HAI column used for labeling "responders" and "non-responders" to a vaccine.  The user
+- **endPoint** = the HAI column used for labeling "responders" and "non-responders" to a vaccine.  The user
   has the option of fc_res_max_d30 or fc_res_max_d20, which select either the 30% / 70% points for 
   discretization or 20% / 80% respectively.
-- adjusted = If TRUE, selects the age-adjusted gene expression values for use in calculations.
-- baselineOnly = If TRUE, uses only day zero gene expression values in calculations.
-- indiv_rds = If TRUE, outputs the rds files for the individual studies as part of the output
-- geneSetDB = The file used for gene set definition.
-***************************************************************************************
-#-----------------------------------------------------------------------------------------
+- **adjusted** = If TRUE, selects the age-adjusted gene expression values for use in calculations.
+- **baselineOnly** = If TRUE, uses only day zero gene expression values in calculations.
+- **indiv_rds** = If TRUE, outputs the rds files for the individual studies as part of the output
+- **geneSetDB** = The file used for gene set definition.
+
+***
+
 

@@ -39,7 +39,7 @@
 # rawdata_dir <- file.path(pp_dir,"rawdata")
 
 #------HELPER METHODS ------------------------------------------------------
-# Get gene expression file names from ImmuneSpace and return as data frame
+# Get gene expression file names from ImmuneSpace and use only baseline data
 get_gef <- function(con, sdy){
   gef <- con$getDataset("gene_expression_files")
   if(sdy != "SDY80"){
@@ -48,6 +48,7 @@ get_gef <- function(con, sdy){
   return(gef)
 }
 
+# For SDY212 / SDY67 pull from ImmuneSpace via RCurl to use netrc instead of Auth with httr::GET
 make_handle <- function(con){
   opts <- con$config$curlOptions
   opts$netrc <- 1L
@@ -55,7 +56,7 @@ make_handle <- function(con){
   return(handle)
 }
 
-# download microarray or gene expression files from ImmuneSpace and return list of tables
+# download microarray or gene expression files from ImmuneSpace and return list of filenames
 dl_IS_GE <- function(handle, ge_flnms, sdy, rawdata_dir){
   fl_list <- llply(ge_flnms, .fun = function(x){
     func <- basicTextGatherer()
@@ -83,17 +84,8 @@ get_GE_vals <- function(fl_list, subids){
   return(vals_list)
 }
 
-# for SDY80, need to build matrix from individual accessions
-get_GEOvals <- function(destdir, gsm_list){
-  val_list <- lapply(gsm_list, FUN = function(x){
-    expr_vals <- Table(getGEO(x, destdir = ))[,2]
-  })
-  names(val_list) <- gsm_list
-  return(val_list)
-}
-
-# download gene expression files from immport for yale studies
-get_immport_files <- function(sdy, rawdata_dir){
+# download gene expression matrix file from GEO - faster than GEOquery::getGSEtable()
+get_GSE_files <- function(sdy, rawdata_dir){
   link <- ""
   if(sdy == "SDY63"){
     link <- "ftp://ftp.ncbi.nlm.nih.gov/geo/series/GSE59nnn/GSE59635/suppl/GSE59635_non-normalized.txt.gz"
@@ -101,9 +93,11 @@ get_immport_files <- function(sdy, rawdata_dir){
     link <- "ftp://ftp.ncbi.nlm.nih.gov/geo/series/GSE59nnn/GSE59654/suppl/GSE59654_non-normalized.txt.gz"
   }else if(sdy == "SDY400"){
     print("data not available yet")
+  }else if(sdy == "SDY80"){
+    link <- "ftp://ftp.ncbi.nlm.nih.gov/geo/series/GSE47nnn/GSE47353/matrix/GSE47353_series_matrix.txt.gz"
   }
   inputFile <- paste0(rawdata_dir, "/", sdy, ".txt.gz")
-  dump <- GET(url = link, write_disk(inputFile, overwrite = TRUE))
+  suppressMessages(GET(url = link, write_disk(inputFile, overwrite = TRUE)))
   gunzip(inputFile, overwrite = TRUE)
   inputFile <- paste0(rawdata_dir, "/", sdy, ".txt")
   return(inputFile)
@@ -268,99 +262,97 @@ makeGE <- function(sdy,
       sdy <- "SDY67-batch2" # to be consistent with naming for Datasets.R
     }
 
-  }else if(sdy %in% c("SDY63","SDY404","SDY400")){
+  }else if(sdy %in% c("SDY63","SDY404","SDY400","SDY80")){
 
-    inputFiles <- get_immport_files(sdy, rawdata_dir)
-    rawdata <- as.data.frame(fread(inputFiles))
+    inputFiles <- get_GSE_files(sdy, rawdata_dir)
 
-    if(yale.anno == "original"){
-      anno_tbl <- SDY63_anno_tbl # "SDY63_anno_tbl.tsv" was generated from original file (SDY63.GEMatrix.txt)
-      colnames(anno_tbl) <- c("probeIDs","geneSymbol")
-      keys <- anno_tbl$probeIDs
-      values <- anno_tbl$geneSymbol
+    if(sdy != "SDY80"){
 
-    }else if(yale.anno == "library"){
-      id_ls <- as.list(illuminaHumanv4ALIAS2PROBE)
-      keys <- inv_alias2probe(id_ls)
-      values <- names(keys)
-      # gene_syms <- hashmap(exp_ids, names(exp_ids), probe_ids, dflt_ret = "")
+      rawdata <- as.data.frame(fread(inputFiles))
 
-    }else if(yale.anno == "manifest"){
-      anno_tbl <- ilv4_anno_tbl
-      keys <- anno_tbl$ID
-      values <- anno_tbl$ILMN_Gene
+      if(yale.anno == "original"){
+        anno_tbl <- SDY63_anno_tbl # "SDY63_anno_tbl.tsv" was generated from original file (SDY63.GEMatrix.txt)
+        colnames(anno_tbl) <- c("probeIDs","geneSymbol")
+        keys <- anno_tbl$probeIDs
+        values <- anno_tbl$geneSymbol
+
+      }else if(yale.anno == "library"){
+        id_ls <- as.list(illuminaHumanv4ALIAS2PROBE)
+        keys <- inv_alias2probe(id_ls)
+        values <- names(keys)
+        # gene_syms <- hashmap(exp_ids, names(exp_ids), probe_ids, dflt_ret = "")
+
+      }else if(yale.anno == "manifest"){
+        anno_tbl <- ilv4_anno_tbl
+        keys <- anno_tbl$ID
+        values <- anno_tbl$ILMN_Gene
+      }
+
+      # Clean and Prep
+      probe_ids <- rawdata$ID_REF
+      gene_syms <- hashmap(keys,
+                           values,
+                           probe_ids,
+                           dflt_ret = "")
+      rawdata <- rawdata[ , grepl("PBMC", names(rawdata))]
+
+      # Norm / Map
+      final_expr_vals <- norm_map_mx(sdy, rawdata, "Sub.Org.Accession", "User.Defined.ID")
+
+      # SDY404 ids from Immport have actual day the sample was taken (e.g. 4 instead of 2) according to
+      # personal communication from Stefan Avey at Yale. However this creates conflicts with the original
+      # file that had standard days (e.g. 2 and 28). Therefore, changing here to ensure reproducibility
+      # of original information.
+      if(sdy == "SDY404"){
+        colnms <- colnames(final_expr_vals)
+        bad_ids <-  c("SUB120470_d24", "SUB120472_d32", "SUB120480_d4", "SUB120481_d4", "SUB120483_d4",
+                      "SUB120484_d4", "SUB120485_d4", "SUB120487_d4", "SUB120488_d4")
+        good_ids <- c("SUB120470_d28", "SUB120472_d28", "SUB120480_d2", "SUB120481_d2", "SUB120483_d2",
+                      "SUB120484_d2", "SUB120485_d2", "SUB120487_d2", "SUB120488_d2")
+        id_hash <- hash(bad_ids, good_ids)
+        colnms <- sapply(colnms, FUN = function(x){
+          if(has.key(x, id_hash)){
+            return(id_hash[[x]])
+          }else{
+            return(x)
+          }
+        })
+        colnames(final_expr_vals) <- colnms
+      }
+    }else if(sdy == "SDY80"){
+
+      rawdata <- as.data.frame(fread(inputFiles, skip = 96, header = T, fill = T))
+
+      if(sdy80.anno == "original"){
+        gene_syms <- hashmap(SDY80_orig_anno$probeID, SDY80_orig_anno$gs, probe_ids)
+
+      }else if(sdy80.anno == "library"){
+        id_ls <- as.list(hugene10sttranscriptclusterALIAS2PROBE)
+        keys <- inv_alias2probe(id_ls)
+        gene_syms <- hashmap(keys, names(keys), probe_ids)
+      }
+
+      # To mimic original file, I remove all rows that were not
+      # successfully mapped, which is approximately 45%.  Unsure why this was done.
+      gene_syms <- gene_syms[which(sapply(gene_syms, FUN = function(x){!is.na(x)}))]
+      probe_ids <- probe_ids[which(probe_ids %in% names(gene_syms))]
+      rawdata <- rawdata[ which(rawdata$probe_ids %in% names(gene_syms)), ]
+      rawdata <- rawdata[,-1]
+
+      if(sdy80.norm == F){
+        # to mimic original file data, but use ImmuneSpace subjectIDs instead of biosampleIDs
+        colnames(rawdata) <- unname(map_headers(sdy,
+                                                colnames(rawdata),
+                                                is_col = "GE_name",
+                                                smpl_col = "GSM"))
+        final_expr_vals <- rawdata
+      }else{
+        # log2 untransform rawdata and send down regular pipeline
+        rawdata <- 2 ^ rawdata
+        final_expr_vals <- norm_map_mx(sdy, rawdata, is_col = "GE_name", smpl_col = "GSM")
+      }
+      sdy <- "CHI-nih"
     }
-
-    # Clean and Prep
-    probe_ids <- rawdata$ID_REF
-    gene_syms <- hashmap(keys,
-                         values,
-                         probe_ids,
-                         dflt_ret = "")
-    rawdata <- rawdata[ , grepl("PBMC", names(rawdata))]
-
-    # Norm / Map
-    final_expr_vals <- norm_map_mx(sdy, rawdata, "Sub.Org.Accession", "User.Defined.ID")
-
-    # SDY404 ids from Immport have actual day the sample was taken (e.g. 4 instead of 2) according to
-    # personal communication from Stefan Avey at Yale. However this creates conflicts with the original
-    # file that had standard days (e.g. 2 and 28). Therefore, changing here to ensure reproducibility
-    # of original information.
-    if(sdy == "SDY404"){
-      colnms <- colnames(final_expr_vals)
-      bad_ids <-  c("SUB120470_d24", "SUB120472_d32", "SUB120480_d4", "SUB120481_d4", "SUB120483_d4",
-                    "SUB120484_d4", "SUB120485_d4", "SUB120487_d4", "SUB120488_d4")
-      good_ids <- c("SUB120470_d28", "SUB120472_d28", "SUB120480_d2", "SUB120481_d2", "SUB120483_d2",
-                    "SUB120484_d2", "SUB120485_d2", "SUB120487_d2", "SUB120488_d2")
-      id_hash <- hash(bad_ids, good_ids)
-      colnms <- sapply(colnms, FUN = function(x){
-        if(has.key(x, id_hash)){
-          return(id_hash[[x]])
-        }else{
-          return(x)
-        }
-      })
-      colnames(final_expr_vals) <- colnms
-    }
-
-  }else if(sdy == "SDY80"){
-    # get data via scraping geo site and parsing into list of tables
-    con <- CreateConnection(sdy)
-    gef <- get_gef(con, sdy)
-    probe_ids <- suppressMessages(Table(getGEO(gef$geo_accession[[1]]))[,1])
-    val_list <- suppressMessages(get_GEOvals(destdir = rawdata_dir, gsm_list = gef$geo_accession))
-    rawdata <- quickdf(val_list)
-    rawdata <- cbind(probe_ids, rawdata)
-
-    if(sdy80.anno == "original"){
-      gene_syms <- hashmap(SDY80_orig_anno$probeID, SDY80_orig_anno$gs, probe_ids)
-
-    }else if(sdy80.anno == "library"){
-      id_ls <- as.list(hugene10sttranscriptclusterALIAS2PROBE)
-      keys <- inv_alias2probe(id_ls)
-      gene_syms <- hashmap(keys, names(keys), probe_ids)
-    }
-
-    # To mimic original file, I remove all rows that were not
-    # successfully mapped, which is approximately 45%.  Unsure why this was done.
-    gene_syms <- gene_syms[which(sapply(gene_syms, FUN = function(x){!is.na(x)}))]
-    probe_ids <- probe_ids[which(probe_ids %in% names(gene_syms))]
-    rawdata <- rawdata[ which(rawdata$probe_ids %in% names(gene_syms)), ]
-    rawdata <- rawdata[,-1]
-
-    if(sdy80.norm == F){
-      # to mimic original file data, but use ImmuneSpace subjectIDs instead of biosampleIDs
-      colnames(rawdata) <- unname(map_headers(sdy,
-                                           colnames(rawdata),
-                                           is_col = "GE_name",
-                                           smpl_col = "GSM"))
-      final_expr_vals <- rawdata
-    }else{
-      # log2 untransform rawdata and send down regular pipeline
-      rawdata <- 2 ^ rawdata
-      final_expr_vals <- norm_map_mx(sdy, rawdata, is_col = "GE_name", smpl_col = "GSM")
-    }
-    sdy <- "CHI-nih"
   }
 
   write_out(probe_ids, gene_syms, final_expr_vals, sdy, output_dir)
@@ -380,6 +372,7 @@ makeGE <- function(sdy,
 # FOR GEO ORIGINALLY SDY80
 # create links with following format and pull data:
 # https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?view=data&acc=GSM1147759&id=13600&db=GeoDb_blob98
+# NTS: GSE for SDY80 is GSE47353
 # base <- "https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?view=data&acc="
 # joint <- "&id="
 # tail <- "&db=GeoDb_blob98"
@@ -403,6 +396,26 @@ makeGE <- function(sdy,
 #
 # # return list of tables
 # return(tbl_list)
+
+# # get data via scraping geo site and parsing into list of tables
+# con <- CreateConnection(sdy)
+# gef <- get_gef(con, sdy)
+# probe_ids <- suppressMessages(Table(getGEO(gef$geo_accession[[1]]))[,1])
+# val_list <- suppressMessages(get_GEOvals(destdir = rawdata_dir, gsm_list = gef$geo_accession))
+# rawdata <- quickdf(val_list)
+# rawdata <- cbind(probe_ids, rawdata)
+
+
+#
+# # for SDY80, need to build matrix from individual accessions
+# get_GEOvals <- function(destdir, gsm_list){
+#   val_list <- lapply(gsm_list, FUN = function(x){
+#     expr_vals <- Table(getGEO(x, destdir = ))[,2]
+#   })
+#   names(val_list) <- gsm_list
+#   return(val_list)
+# }
+
 
 # # For SDY80, SDY67 need to build matrix from list of vectors holding GE values
 # list2matrix <- function(val_list, colnms){
