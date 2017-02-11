@@ -3,25 +3,45 @@ title: "HIPC ImmuneSignatures Project Meta Analysis Using Data from ImmuneSpace"
 authors: "HIPC ImmuneSignatures Project Collaborators"
 package developer: "Evan Henrich, Gottardo Lab @ Fred Hutchinson Cancer Research Center"
 contact: "ehenrich@fredhutch.org"
-created: "January 2017"
-output: html_document
+date: "`r Sys.Date()`"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{HIPC Meta-Analysis with Manuscript Parameters}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
 ---
 
 ***
-### January 2017
-### Study Authors: HIPC ImmuneSignature Collaborators
-### Package Developer: Evan Henrich (Gottardo Lab - FHCRC)
-### Contact: ehenrich@fredhutch.org
+## PACKAGE INFORMATION
+#### Created: January 2017
+#### Study Authors: HIPC ImmuneSignature Collaborators
+#### Package Developer: Evan Henrich (Gottardo Lab - FHCRC)
+#### Contact: ehenrich@fredhutch.org
 
-## EDITOR'S NOTES:
-This markdown file outputs the results of the HIPC ImmuneSignatures Project using the original parameters  
-developed by the collaborators.  Interested users may re-run the full pipeline with different parameters for  
-the raw data pre-processing step, such as gene annotation methods, as well as meta-analysis step, such as  
-p-value or FDR cutoffs.  
+***
 
-```{r include=FALSE, warning=FALSE}
+## GENERAL NOTES:
+This markdown file outputs the results of the HIPC ImmuneSignatures Project using the original parameters 
+developed by the collaborators. Interested users may re-run the full pipeline using the `hipc_full_pipeline()` 
+command with different parameters by following the prompts and seeing the different sections below for parameter 
+options. For example, during the raw data pre-processing step the user may select different gene annotation 
+methods that can affect the final results. Once the full pipeline has been run once through, you may also use 
+the `hipc_meta_analysis()` command to re-run only the meta-analysis with different parameters.
+
+```{r set-options, include=FALSE}
 library(ImmSigPkg)
+options(width = 999)
+opts_chunk$set(echo=FALSE, 
+               cache=FALSE, 
+               warning=FALSE, 
+               message=FALSE, 
+               tidy=TRUE,
+               fig.height=7, 
+               fig.width=7,
+               fig.align = "center")
+```
 
+```{r include=FALSE}
 studies <- c("SDY212", "SDY63", "SDY404", "SDY400", "SDY80", "SDY67")
 
 # Setup initial directory structure
@@ -64,43 +84,45 @@ for(sdy in studies){
 ```
 
 ***
-## PRE-PROCESSING PARAMETERS:
+## PRE-PROCESSING 
+
+### PARAMETERS:
 - **Yale Studies Gene Expression Annotation: ** `r yale.anno`
 - **Processing of SDY80/CHI-nih from IS rawdata: ** `r sdy80.process`
 - **SDY80/CHI-nih Gene Expression Annotation: ** `r sdy80.anno`
 - **SDY80/CHI-nih GE normalization via pipeleine: ** `r sdy80.norm`
 
-## OUTPUT DIRECTORY:
+### OUTPUT DIRECTORY:
 - `r ImmSig_dir`
 
 ### NOTES:
-1. Gene expression annotation methods:
-- **original** = using the original pre-processed GE table from HIPC collaborators to generate
+1. **Gene expression annotation methods:  **
+  + *original* = using the original pre-processed GE table from HIPC collaborators to generate
   a hash of Probe IDs as keys and Gene Symbols as values.  For the Yale Studies, this method
   means that the annotation is based on the GE table provided from the Illumina sequencing
   machine at the time of the run.  For SDY80/CHI-nih, the information is from the Affymetrix
   annotation done at the time.
-- **library** = the use of a bioconductor library.  For Yale Studies, this was illuminahumanv4.db.
+  + *library* = the use of a bioconductor library.  For Yale Studies, this was illuminahumanv4.db.
   For SDY80, it was hugene10sttranscriptcluster.db.
-- **manifest** = Uses the manifest available from the Illumina website which consists of all historic
+  + *manifest* = Uses the manifest available from the Illumina website which consists of all historic
   probeIDs.  In the case of the Yale Studies, this generates complete mapping, whereas the 
   original table has only partial mapping and the library even less.
 
-2. SDY80 / CHI-nih normalization
-- In the original code used to develop the manuscript, The study's rawdata from the GEO database 
+2. **SDY80 / CHI-nih normalization:  **
+  + In the original code used to develop the manuscript, The study's rawdata from the GEO database 
   has been log2 transformed, but is not normalized in the same was as the discovery studies 
   (i.e. preprocessCore::normalize.quantiles).  Therefore sdy80.norm is FALSE by default.  However,
   the user may set it to TRUE and use the same normalization procedure as the other studies.
   
-3. SDY212 GE data removal
-- SDY212 had two sets of GE data with the same biosample ID.  These sets were removed from analysis
+3. **SDY212 GE data removal:  **
+  + SDY212 had two sets of GE data with the same biosample ID.  These sets were removed from analysis
   because it was unclear why there was a duplicate.  Also, one gene did not have a full set of
   expression information in the ImmPort file and was also removed.  Questions should be directed to
   the study authors directly.
 
 ***
 
-```{r include=FALSE, warning=FALSE}
+```{r include=FALSE}
 # Step 2: Combine pre-processed files into Rds (BioConductor eset)
 rds_dir <- file.path(ImmSig_dir, "Rds_data")
 dir.create(path = rds_dir)
@@ -121,11 +143,13 @@ indiv_rds <- FALSE
 output_dir <- "Placeholder"
 ```
 
+## META-ANALYSIS 
 
-## YOUNG COHORT META-ANALYSIS RESULTS
+### YOUNG COHORT RESULTS
 
-```{r results="markup", echo=FALSE, warning=FALSE, message=FALSE}
-meta_analysis(geneSetDB = geneSetDB,
+#### FIGURES
+```{r results="markup"}
+yng_res_dfs <- meta_analysis(geneSetDB = geneSetDB,
                   rds_data_dir = rds_dir,
                   cohort = "young",
                   FDR.cutoff = FDR.cutoff,
@@ -138,11 +162,23 @@ meta_analysis(geneSetDB = geneSetDB,
                   output_dir = output_dir)
 ```
 
+#### Discovery Group Significant Pathways  
+``` {r}
+DT::datatable(yng_res_dfs$dsc)
+```
 
-## OLD COHORT META-ANALYSIS RESULTS
+#### Validation Study Significant Pathways  
+``` {r}
+DT::datatable(yng_res_dfs$val)
+```
 
-```{r results="markup", echo=FALSE, warning=FALSE, message=FALSE}
-meta_analysis(geneSetDB = geneSetDB,
+***
+
+### OLD COHORT RESULTS
+
+#### FIGURES
+```{r results="markup", fig.height=7, fig.width=7}
+old_res_dfs <- meta_analysis(geneSetDB = geneSetDB,
                   rds_data_dir = rds_dir,
                   cohort = "old",
                   FDR.cutoff = FDR.cutoff,
@@ -155,28 +191,41 @@ meta_analysis(geneSetDB = geneSetDB,
                   output_dir = output_dir)
 ```
 
+#### Discovery Group Significant Pathways  
+``` {r}
+DT::datatable(old_res_dfs$dsc)
+```
+
+#### Validation Study Significant Pathways  
+``` {r}
+DT::datatable(old_res_dfs$val)
+```
+
+
 ***
 
-## META-ANALYSIS PARAMETERS:
+### PARAMETERS:
 - **FDR.cutoff: ** `r FDR.cutoff`
-- **pvalue.cutoff: **`r pvalue.cutoff`
+- **pvalue.cutoff: ** `r pvalue.cutoff`
 - **endPoint: ** `r endPoint`
 - **adjusted: ** `r adjusted`
 - **baselineOnly: ** `r baselineOnly`
 - **indiv_rds: ** `r indiv_rds`
-- **geneSetDB: ** `r BTM_for_GSEA_20131008.gmt`
+- **geneSetDB: ** BTM_for_GSEA_20131008.gmt
 
-## PARAMETERS DEFINITION:
-- **FDR.cutoff** = Cut off point for q-values, in code 'combined.q <- p.adjust(combined.p, method="BH")'
-- **pvalue.cutoff** = Cut off point for p-values when selecting gene pathways as 'significant' from the
-  discovery studies. In code, 'combined.p <- pdf.pval(combinePDFs(quSageObjList, n.points = 2^14))' 
-- **endPoint** = the HAI column used for labeling "responders" and "non-responders" to a vaccine.  The user
-  has the option of fc_res_max_d30 or fc_res_max_d20, which select either the 30% / 70% points for 
-  discretization or 20% / 80% respectively.
-- **adjusted** = If TRUE, selects the age-adjusted gene expression values for use in calculations.
-- **baselineOnly** = If TRUE, uses only day zero gene expression values in calculations.
-- **indiv_rds** = If TRUE, outputs the rds files for the individual studies as part of the output
-- **geneSetDB** = The file used for gene set definition.
+### PARAMETERS DEFINITION:
+*possible and expected values in [brackets]*  
+
+- **FDR.cutoff** = [FLOAT] Cut off point for q-values, in code 'combined.q <- p.adjust(combined.p, method="BH")'.
+- **pvalue.cutoff** = [FLOAT] Cut off point for p-values when selecting gene pathways as 'significant' from the
+  discovery studies. In code, 'combined.p <- pdf.pval(combinePDFs(quSageObjList, n.points = 2^14))'.
+- **endPoint** = [INT] The integer decides which HAI column should be used for categorizing"responders" and 
+  "non-responders" to a vaccine. The user has the option of '30', which uses 'fc_res_max_d30', or 20, which uses 
+  'fc_res_max_d20'. These columns are calculated using either the 30% / 70% points or 20% / 80% for discretization.
+- **adjusted** = [BOOL] If TRUE, selects the age-adjusted gene expression values for use in calculations.
+- **baselineOnly** = [BOOL] If TRUE, uses only day zero gene expression values in calculations.
+- **indiv_rds** = [BOOL] If TRUE, outputs the rds files for the individual studies as part of the output.
+- **geneSetDB** = [STRING] The file path used for gene set definition.  Currently file is loaded with data().
 
 ***
 

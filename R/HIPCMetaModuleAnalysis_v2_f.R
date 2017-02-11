@@ -97,6 +97,8 @@ meta_analysis <- function(geneSetDB,
                           markdown = F,
                           output_dir){
 
+  result_dfs <- list() # holds output tables for use with markdown
+
   discoverySDY = c('SDY212','SDY63','SDY404','SDY400')
   if(cohort == 'young'){
     validation.sdy <- 'CHI-nih'
@@ -212,11 +214,9 @@ meta_analysis <- function(geneSetDB,
     dev.off()
 
   }else{
-    cat("\n")
-    cat(paste0("DISCOVERY GROUP RESULTS: ", toupper(cohort), " COHORT"))
-    cat("\n")
+    cat(paste0("DISCOVERY GROUP SIGNIFICANT PATHWAY: ", toupper(cohort), " COHORT"))
 
-    print(kable(out_matrix, format = "markdown"))
+    result_dfs$dsc <- as.data.frame(out_matrix)
 
     for(i in index_sig){
       plot(combinePDFsResult, path.index = i)
@@ -298,12 +298,9 @@ meta_analysis <- function(geneSetDB,
     dev.off()
 
   }else{
-    cat("\n")
-    cat(paste0("VALIDATION STUDY RESULTS: ", toupper(cohort), " COHORT"))
-    cat("\n")
+    cat(paste0("VALIDATION STUDY SIGNFICANT PATHWAYS: ", toupper(cohort), " COHORT"))
 
-    # plot out-matrix
-    print(kable(out_matrix, format = "markdown"))
+    result_dfs$val <- as.data.frame(out_matrix)
 
     # plot graphs
     for(i in index_sig){
@@ -323,7 +320,7 @@ meta_analysis <- function(geneSetDB,
       abline(v = 0, lty = 2)
     }
   }
-
+  return(result_dfs)
 }
 
 

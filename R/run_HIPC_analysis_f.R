@@ -140,7 +140,8 @@ hipc_meta_analysis <- function(rds_dir, cohort, orig_params = T, output_dir){
 #' @importFrom GEOquery gunzip
 #' @importFrom tibble as_tibble
 #' @importFrom RCurl getCurlHandle basicTextGatherer curlPerform
-#' @importFrom knitr kable
+#' @importFrom DT datatable
+#' @import knitr
 #' @import dplyr
 #' @import qusage
 #' @import Biobase

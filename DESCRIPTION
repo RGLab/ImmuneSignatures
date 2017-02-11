@@ -10,9 +10,7 @@ License: What license is it under?
 Encoding: UTF-8
 LazyData: true
 Depends: ImmuneSpaceR
-Imports: XML,
-    xml2,
-    tools,
+Imports: tools,
     plyr,
     dplyr,
     httr,
@@ -28,4 +26,6 @@ Imports: XML,
     hgu133plus2.db,
     DESeq,
     preprocessCore
+Suggests: knitr, rmarkdown
+VignetteBuilder: knitr
 RoxygenNote: 5.0.1
