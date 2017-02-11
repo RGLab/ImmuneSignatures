@@ -31,7 +31,7 @@ the `hipc_meta_analysis()` command to re-run only the meta-analysis with differe
 ```{r set-options, include=FALSE}
 library(ImmSigPkg)
 options(width = 999)
-opts_chunk$set(echo=FALSE, 
+knitr::opts_chunk$set(echo=FALSE, 
                cache=FALSE, 
                warning=FALSE, 
                message=FALSE, 
