@@ -146,8 +146,6 @@ output_dir <- "Placeholder"
 ## META-ANALYSIS 
 
 ### YOUNG COHORT RESULTS
-
-#### FIGURES
 ```{r results="markup"}
 yng_res_dfs <- meta_analysis(geneSetDB = geneSetDB,
                   rds_data_dir = rds_dir,
@@ -162,12 +160,12 @@ yng_res_dfs <- meta_analysis(geneSetDB = geneSetDB,
                   output_dir = output_dir)
 ```
 
-#### Discovery Group Significant Pathways  
+#### Discovery Group Significant Pathways Data  
 ``` {r}
 DT::datatable(yng_res_dfs$dsc)
 ```
 
-#### Validation Study Significant Pathways  
+#### Validation Study Significant Pathways Data  
 ``` {r}
 DT::datatable(yng_res_dfs$val)
 ```
@@ -176,8 +174,7 @@ DT::datatable(yng_res_dfs$val)
 
 ### OLD COHORT RESULTS
 
-#### FIGURES
-```{r results="markup", fig.height=7, fig.width=7}
+```{r results="markup"}
 old_res_dfs <- meta_analysis(geneSetDB = geneSetDB,
                   rds_data_dir = rds_dir,
                   cohort = "old",
@@ -191,12 +188,12 @@ old_res_dfs <- meta_analysis(geneSetDB = geneSetDB,
                   output_dir = output_dir)
 ```
 
-#### Discovery Group Significant Pathways  
+#### Discovery Group Significant Pathways Data  
 ``` {r}
 DT::datatable(old_res_dfs$dsc)
 ```
 
-#### Validation Study Significant Pathways  
+#### Validation Study Significant Pathways Data  
 ``` {r}
 DT::datatable(old_res_dfs$val)
 ```
@@ -214,7 +211,7 @@ DT::datatable(old_res_dfs$val)
 - **geneSetDB: ** BTM_for_GSEA_20131008.gmt
 
 ### PARAMETERS DEFINITION:
-*possible and expected values in [brackets]*  
+*Expected Input Data Types in [brackets]*  
 
 - **FDR.cutoff** = [FLOAT] Cut off point for q-values, in code 'combined.q <- p.adjust(combined.p, method="BH")'.
 - **pvalue.cutoff** = [FLOAT] Cut off point for p-values when selecting gene pathways as 'significant' from the

@@ -214,7 +214,7 @@ meta_analysis <- function(geneSetDB,
     dev.off()
 
   }else{
-    cat(paste0("DISCOVERY GROUP SIGNIFICANT PATHWAY: ", toupper(cohort), " COHORT"))
+    cat(paste0("DISCOVERY GROUP - SIGNIFICANT PATHWAY FIGURES"))
 
     result_dfs$dsc <- as.data.frame(out_matrix)
 
@@ -298,7 +298,7 @@ meta_analysis <- function(geneSetDB,
     dev.off()
 
   }else{
-    cat(paste0("VALIDATION STUDY SIGNFICANT PATHWAYS: ", toupper(cohort), " COHORT"))
+    cat(paste0("VALIDATION STUDY - SIGNFICANT PATHWAY FIGURES"))
 
     result_dfs$val <- as.data.frame(out_matrix)
 
