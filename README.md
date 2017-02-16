@@ -12,18 +12,19 @@ user-defined options.
 Getting Started
 ===============
 
-**To download and install the package:**
+**To download and install the package, incl. vignette:**
 
 ```R
 library(devtools)
-install_github("ehfhcrc/ImmSigPkg")
+install_github("ehfhcrc/ImmSigPkg", build_vignettes = TRUE)
 library(ImmSigPkg)
 ```
 
-**Checkout the vignette:** 
-`vignette(package = "ImmSigPkg")`
+**View vignette:** 
+`vignette(topic = "Manuscript_Pipeline", package = "ImmSigPkg")`
 
-Note: the vignette shows the output of the pipeline using the original parameters
+Note: the vignette shows the output of the pipeline using the original parameters and  
+takes approximately 45 minutes to build.
 
 Running the Pipeline
 ====================
@@ -37,8 +38,10 @@ using the command `hipc_meta_analysis()`.  One point, this will write over your 
 result files.  
 
 **Notes as of February 2017:**  
+
 1. SDY80 rawdata is not yet able to be processed directly, pipeline uses original 
-rawdata files provided by collaborators.  This will be incorporated as time permits.  
+rawdata files provided by collaborators. Therefore, selecting "process SDY80 rawdata" 
+when prompted will error out.  This functionality will be incorporated as time permits.  
 2. SDY400 genetic expression data is not publicly available and the pipeline uses
 rawdata for baseline expression provided by the collaborators.  This will be made public
 in Summer 2017 and will be incorporated as time permits.

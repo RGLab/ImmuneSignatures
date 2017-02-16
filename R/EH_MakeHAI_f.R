@@ -330,7 +330,7 @@ makeHAI <- function(sdy, output_dir){
   # Inverse normal transformation of standardized/normalized max fold change column
   # Done by quantile normalization on a modified ranking of observations
   # fc_norm_max_ivt << provided from Yuri Kotliarov
-  ranked <- rank(titer_data$fc_norm_max, na.last = "keep", ties.method="average")
+  ranked <- rank(titer_data$fc_norm_max, na.last = "keep")
   P <- ranked / (sum(!is.na(ranked)) + 1) # +1 needed to avoid 0,1 values that generate inf, -inf
   titer_data$fc_norm_max_ivt <- qnorm(P)
 
