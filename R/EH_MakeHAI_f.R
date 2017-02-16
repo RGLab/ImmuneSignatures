@@ -39,6 +39,10 @@ med_sd_calc <- function(prefix, strains, glob_vals, titer_data){
   return(glob_vals)
 }
 
+robust_med <- function(vec){
+  return(median(vec[!is.na(vec) & !is.infinite(vec)]))
+}
+
 # Seems computationally costly, but enough edge cases merit checking for valid data before extraction
 # Valid means at least two titers per strain, with one being zero and the other greater than zero.
 sub_check <- function(sub_df, strains){
@@ -173,22 +177,15 @@ makeHAI <- function(sdy, output_dir){
     tmpmat <- matrix(NA,ncol = 20, nrow = 64)
     colnames(tmpmat) <- allnms
 
-    bind <- data.frame(joined_data, tmpmat)
+    titer_data <- data.frame(joined_data, tmpmat)
 
-
-    # Following subjects removed for low cell viability on flow or unique ethnicity
-    subs_rm <- c(206, 226, 243, 247, 249, 252, 254, 263, 270, 275, 281, 282)
-    titer_data <- subset(bind, !(bind$subject %in% subs_rm))
-
-    id_hsh <- hash(SDY80_IDmap$bioSampleID, SDY80_IDmap$participantID)
-    titer_data$subject <- sapply(titer_data$subject, FUN = function(x){
-      val <- id_hsh[[as.character(x)]]
-      return(ifelse(is.null(val), 223, val))
-    })
+    # Adding cohort definition from Yuri comments re: code
+    old_subs <- c(212, 229, 232, 233, 244, 245, 250, 251, 260, 261, 273, 277, 280)
+    titer_data$cohort <- ifelse(titer_data$subject %in% old_subs, "Old", "Young")
 
     subids <- titer_data$subject
     strains <- c("H1N1", "A_Brisbane", "A_Uruguay","B_Brisbane")
-    cohorts <- "" # none present, all young?
+    cohorts <- c("all", "young", "old")
     opts <- c("d0_","fc_")
     str_d28_names <- ""
     for(virus in strains){
@@ -302,13 +299,11 @@ makeHAI <- function(sdy, output_dir){
       std_norm_col <- paste0(ver, "std_norm_", virus)
       tcol <- titer_data[[paste0(ver, virus)]]
       colmed <- glob_vals[[paste0(ver,"med")]][[virus]]
-      if(median(tcol) != colmed){
-        stop("median not the same!")
-      }
       colsd <- glob_vals[[paste0(ver,"sd")]][[virus]]
       if(sdy == "SDY80"){
         mad <- median(abs(tcol - colmed))
-        titer_data[std_norm_col] <- (tcol - colmed) / mad
+        robust_med <- robust_med(tcol)
+        titer_data[std_norm_col] <- (tcol - robust_med) / mad
         rep_ls <- titer_data[std_norm_col] == Inf
         titer_data[std_norm_col][rep_ls] <- NA
       }else{
@@ -335,9 +330,17 @@ makeHAI <- function(sdy, output_dir){
   # Inverse normal transformation of standardized/normalized max fold change column
   # Done by quantile normalization on a modified ranking of observations
   # fc_norm_max_ivt << provided from Yuri Kotliarov
-  ranked <- rank(titer_data$fc_norm_max, na.last = "keep")
+  ranked <- rank(titer_data$fc_norm_max, na.last = "keep", ties.method="average")
   P <- ranked / (sum(!is.na(ranked)) + 1) # +1 needed to avoid 0,1 values that generate inf, -inf
   titer_data$fc_norm_max_ivt <- qnorm(P)
+
+  # Need to remove SDY80 subjects that have low flow results or NA for B-Brisbane
+  if(sdy == "SDY80"){
+    low_flow <- c(206, 226, 243, 247, 249, 252, 254, 263, 270, 275, 281, 282)
+    brisbane_NA <- c(216, 220, 225, 255, 258, 264, 266, 269, 278, 287, 295, 299, 302)
+    subs_rm <- c(low_flow, brisbane_NA)
+    titer_data <- titer_data[ which(!(titer_data$subject %in% subs_rm)), ]
+  }
 
   # setup meta-list for possible titer tables based on cohorts: young, old, and combined are possible
   submxs <- list()
@@ -346,8 +349,8 @@ makeHAI <- function(sdy, output_dir){
   # Generate subset matrices based on age and perform statistical work on each separately
   # SDY212 and the other studies use different nomenclature for categorization, therefore
   # need to check against lists
-  yng_ls <- c("Cohort_1", "Young adults 21-30 years old")
-  old_ls <- c("Cohort_2", "Cohort2", "Older adults >= 65 years old", "healthy adults, 50-74 yo")
+  yng_ls <- c("Cohort_1", "Young adults 21-30 years old", "Young")
+  old_ls <- c("Cohort_2", "Cohort2", "Older adults >= 65 years old", "healthy adults, 50-74 yo", "Old")
   for(coh in cohorts){
     if(coh %in% yng_ls){
       submxs[["young"]]  <- titer_data[which(titer_data$cohort == coh),]
@@ -394,7 +397,7 @@ makeHAI <- function(sdy, output_dir){
   # By looking at where ivt is the same but fc_res_max was different, one can guess that they
   # were in different bins and estimate the cutoff points by looking at the d0_norm_max value.
   SDY67_bins <- list(c(0.1,0.5,1.5,4,6),c(),c(0.1,0.5,1.5,6))
-  SDY80_bins <- list(c(1,5),c(),c()) # NOT FINISHED YET!
+  SDY80_bins <- list(c(-10,1,50),c(-10,1,50),c()) # From Yuri's code
 
   bname <- paste0(sdy,"_bins")
   bins <- get(bname)
@@ -441,6 +444,11 @@ makeHAI <- function(sdy, output_dir){
     fname <- ""
     if(sdy == "SDY80"){
       fname <- paste0("CHI-nih_", name, base)
+      id_hsh <- hash(SDY80_IDmap$bioSampleID, SDY80_IDmap$participantID)
+      titer_data$subject <- sapply(titer_data$subject, FUN = function(x){
+        val <- id_hsh[[as.character(x)]]
+        return(ifelse(is.null(val), 223, val))
+      })
       df <- df[-which(df$subject == 223), ] # because not able to map 223 to IS ID
     }else{
       fname <- paste0(sdy, "_", name, base)
@@ -455,6 +463,17 @@ makeHAI <- function(sdy, output_dir){
                 row.names = FALSE)
   }
 }
+
+# for SDY80
+# bind <- data.frame(joined_data, tmpmat)
+#
+#
+# # Following subjects removed
+
+
+
+# titer_data <- subset(bind, !(bind$subject %in% subs_rm))
+#
 
 
 

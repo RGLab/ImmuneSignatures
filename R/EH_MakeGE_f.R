@@ -96,6 +96,7 @@ get_GSE_files <- function(sdy, rawdata_dir){
   }else if(sdy == "SDY80"){
     link <- "ftp://ftp.ncbi.nlm.nih.gov/geo/series/GSE47nnn/GSE47353/matrix/GSE47353_series_matrix.txt.gz"
   }
+
   inputFile <- paste0(rawdata_dir, "/", sdy, ".txt.gz")
   suppressMessages(GET(url = link, write_disk(inputFile, overwrite = TRUE)))
   gunzip(inputFile, overwrite = TRUE)
@@ -189,7 +190,7 @@ write_out <- function(probe_ids, gene_syms, norm_map_exprs, sdy, output_dir){
 #' @param yale.anno Yale Studies gene symbol annotation original, library, or manifest
 #' @param sdy80.anno SDY80 gene symbol annotation original or library
 #' @param sdy80.norm normalize SDY80 expression values according to pipeline, default FALSE
-#' @param output_dir output director
+#' @param output_dir output directory
 #' @param rawdata_dir directory for holding rawdata downloads
 #' @export
 makeGE <- function(sdy,

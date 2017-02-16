@@ -26,6 +26,9 @@ hipc_preprocess <- function(studies, hai_dir, ge_dir, rawdata_dir, orig_params =
       sdy80.anno <- ifelse(sdy80.anno %in% c("H", "h", ""), "o", sdy80.anno)
       sdy80.norm <- readline(prompt = "Re-normalize SDY80 GE data? [T / f]  ")
       sdy80.norm <- ifelse(sdy80.norm %in% c(T, "", "t", "T"), TRUE, FALSE)
+    }else{
+      sdy80.anno <- "o"
+      sdy80.norm <- F
     }
   }else{
     yale.anno <- "o"

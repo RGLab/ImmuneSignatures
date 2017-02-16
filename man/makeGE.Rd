@@ -16,7 +16,7 @@ makeGE(sdy, yale.anno = "original", sdy80.anno = "original",
 
 \item{sdy80.norm}{normalize SDY80 expression values according to pipeline, default FALSE}
 
-\item{output_dir}{output director}
+\item{output_dir}{output directory}
 
 \item{rawdata_dir}{directory for holding rawdata downloads}
 }
