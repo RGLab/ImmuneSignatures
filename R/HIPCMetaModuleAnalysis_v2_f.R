@@ -143,7 +143,7 @@ meta_analysis <- function(geneSetDB,
       ## so, we removed those two entries in data analysis
       if(markdown == F) {
         print("Remove duplicated subject 'SUB134307' from SDY212 data analysis.  See Readme for more information.")
-        }
+      }
       SUB134307_index <-  which(pData(eset)['SubjectID'] == "SUB134307")
       eset <- eset[,-SUB134307_index]
     }
@@ -237,6 +237,7 @@ meta_analysis <- function(geneSetDB,
   if(markdown == F){
     print(paste0("Validate signature gene modules for", cohort, " cohort, study - ", validation.sdy))
   }
+
   dataset_name <- paste(validation.sdy, cohort , endPoint, sep = "_" )
   eset <- getSDY(rds_data_dir = rds_data_dir,
                  sdy = validation.sdy,

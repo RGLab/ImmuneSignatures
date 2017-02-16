@@ -51,7 +51,7 @@ getSDY <- function(rds_data_dir, sdy, group, response, adjusted = FALSE, baselin
     phenoData(eset) <- phenoData(eset)[, setdiff(varLabels(eset),
                                                  c(hai_var, paste0("old_", hai_var)))]
     varLabels(eset) <- gsub("^young_", '', varLabels(eset))
-  } else if( group == 'old' ){
+  }else if( group == 'old' ){
     if(any(eset$Age.class %in% 'Old') && adjusted) {
       assayData(eset) <- list(exprs=assayData(eset)[["adjustedExprs-Old"]])
     }
