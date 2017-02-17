@@ -263,7 +263,7 @@ meta_analysis <- function(geneSetDB,
 
   pvalue <- pdf.pVal(qs.results)[index_sig]
   qvalue <- p.adjust(pvalue, method = "BH")
-  pathway.activity.selected <-qs.results$path.mean[index_sig]
+  pathway.activity.selected <- qs.results$path.mean[index_sig]
 
   out_matrix <- cbind(pvalue, qvalue, pathway.activity.selected)
   rownames(out_matrix) <- names(geneSetDB)[index_sig] # equal to selected.pathways
