@@ -25,7 +25,7 @@ Imports: tools,
     data.table,
     hash,
     RCurl,
-    knitr,
+    knitr
 Suggests: knitr, rmarkdown
 VignetteBuilder: knitr
 RoxygenNote: 5.0.1
