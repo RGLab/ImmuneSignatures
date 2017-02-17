@@ -10,6 +10,13 @@ License: What license is it under?
 Encoding: UTF-8
 LazyData: true
 Depends: ImmuneSpaceR
+BiocViews: Biobase,
+    qusage,
+    illuminaHumanv4.db,
+    hugene10sttranscriptcluster.db,
+    hgu133plus2.db,
+    DESeq,
+    preprocessCore
 Imports: tools,
     plyr,
     dplyr,
@@ -18,14 +25,7 @@ Imports: tools,
     data.table,
     hash,
     RCurl,
-    qusage,
     knitr,
-    Biobase,
-    illuminaHumanv4.db,
-    hugene10sttranscriptcluster.db,
-    hgu133plus2.db,
-    DESeq,
-    preprocessCore
 Suggests: knitr, rmarkdown
 VignetteBuilder: knitr
 RoxygenNote: 5.0.1
