@@ -157,6 +157,18 @@ hipc_meta_analysis <- function(rds_dir, cohort, orig_params = T, output_dir){
 #' @export
 hipc_full_pipeline <- function(){
 
+  bioc_install <- readline(prompt = "Install BioConductor dependencies? [ T / f ] ")
+  if(bioc_install %in% c(T, "T", "t", "")){
+    source("https://bioconductor.org/biocLite.R")
+    biocLite("Biobase")
+    biocLite("qusage")
+    biocLite("illuminaHumanv4.db")
+    biocLite("hugene10sttranscriptcluster.db")
+    biocLite("hgu133plus2.db")
+    biocLite("DESeq")
+    biocLite("preprocessCore")
+  }
+
   studies <- c("SDY212", "SDY63", "SDY404", "SDY400", "SDY80", "SDY67")
   message(paste0("Your working directory is ", getwd()))
   directory <- readline(prompt = "Use current working directory or different path? [ T / f ] ")
