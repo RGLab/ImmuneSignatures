@@ -139,19 +139,12 @@ hipc_meta_analysis <- function(rds_dir, cohort, orig_params = T, output_dir){
 #' @importFrom stringr str_sub str_match str_trim
 #' @importFrom data.table fread setnames
 #' @importFrom hash hash has.key
-#' @importFrom preprocessCore normalize.quantiles
 #' @importFrom GEOquery gunzip
 #' @importFrom tibble as_tibble
 #' @importFrom RCurl getCurlHandle basicTextGatherer curlPerform
 #' @importFrom DT datatable
 #' @import knitr
 #' @import dplyr
-#' @import qusage
-#' @import Biobase
-#' @import hgu133plus2.db
-#' @import DESeq
-#' @import illuminaHumanv4.db
-#' @import hugene10sttranscriptcluster.db
 #'
 #' @return text and pdf files wtih significant gene pathways
 #' @export
