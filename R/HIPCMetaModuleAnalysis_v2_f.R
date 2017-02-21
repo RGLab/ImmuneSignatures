@@ -97,6 +97,7 @@ meta_analysis <- function(geneSetDB,
                           markdown = F,
                           output_dir){
 
+  library(qusage) # load whole library b/c qusage::qusage() needs other functions
   result_dfs <- list() # holds output tables for use with markdown
 
   discoverySDY = c('SDY212','SDY63','SDY404','SDY400')
