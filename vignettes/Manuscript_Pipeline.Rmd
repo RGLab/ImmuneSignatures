@@ -226,3 +226,7 @@ DT::datatable(old_res_dfs$val)
 
 ***
 
+```{r include=TRUE}
+options()
+```
+
