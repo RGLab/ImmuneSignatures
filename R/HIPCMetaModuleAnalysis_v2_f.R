@@ -258,6 +258,8 @@ meta_analysis <- function(geneSetDB,
     labels <- as.character(pData(eset)[,endPoint])
     gene_symbols  <- as.character(fData(eset)$geneSymbol)
     eset <- exprs(eset)
+    print("SDY67 ESET EXPRS")
+    print(eset[1:20,1:10])
   }
 
   qs.results <- run_qs(eset, gene_symbols, labels, validation = T, geneSetDB, markdown)

@@ -261,6 +261,9 @@ makeGE <- function(sdy,
                     "SUB113583_d0","SUB113588_d0","SUB113595_d0","SUB113610_d0")
       final_expr_vals <- remove_subs(rawdata, subs_rm)
       sdy <- "SDY67-batch2" # to be consistent with naming for Datasets.R
+      
+      print("SDY67 GE DATA SAMPLE")
+      print(final_expr_vals[1:20,1:10])
     }
 
   }else if(sdy %in% c("SDY63","SDY404","SDY400","SDY80")){
