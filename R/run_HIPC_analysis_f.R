@@ -139,7 +139,6 @@ hipc_meta_analysis <- function(rds_dir, cohort, orig_params = T, output_dir){
 #' @importFrom stringr str_sub str_match str_trim
 #' @importFrom data.table fread setnames
 #' @importFrom hash hash has.key
-#' @importFrom GEOquery gunzip
 #' @importFrom tibble as_tibble
 #' @importFrom RCurl getCurlHandle basicTextGatherer curlPerform
 #' @importFrom DT datatable
@@ -160,6 +159,7 @@ hipc_full_pipeline <- function(){
     biocLite("hgu133plus2.db")
     biocLite("DESeq")
     biocLite("preprocessCore")
+    biocLite("GEOquery")
   }
 
   studies <- c("SDY212", "SDY63", "SDY404", "SDY400", "SDY80", "SDY67")
