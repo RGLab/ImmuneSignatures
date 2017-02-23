@@ -40,8 +40,14 @@ run_qs <- function(eset, gene_symbols, labels, validation, geneSetDB, markdown){
   eset.nodup <- eset[!is.na(nodup.genes),]
   rownames(eset.nodup)  <- gene_symbols <- gene_symbols[!is.na(nodup.genes)]
 
-  if(validation){eset.nodup.final <- eset.nodup} # EH NOTE: only difference b/t discover and val
-  
+  if(validation){
+    eset.nodup.final <- eset.nodup
+    print("I am lys_139 pathway sample right before qusage")
+    lys_139 <- c("AP1S2", "CD68", "CTSB", "CTSD", "CTSH", "CTSS", "GAA", "NPC2",
+                 "PSAP", "SLC11A1", "SORT1")
+    print( eset.nodup.final[which(rownames(eset.nodup.final) %in% lys_139), 1:10] )
+    } # EH NOTE: only difference b/t discover and val
+
   if(any(rownames(eset.nodup) == "")){
     eset.nodup.final <- eset.nodup[-which(rownames(eset.nodup)==""),]
   }else{
@@ -53,11 +59,6 @@ run_qs <- function(eset, gene_symbols, labels, validation, geneSetDB, markdown){
     labels <-  labels[-which(is.na(labels))]
   }
 
-  print("I am lys_139 pathway sample right before qusage")
-  lys_139 <- c("AP1S2", "CD68", "CTSB", "CTSD", "CTSH", "CTSS", "GAA", "NPC2", 
-           "PSAP", "SLC11A1", "SORT1")
-  print(eset.nodup.final[which(rownames(eset.nodup.final) %in% lys_139), 1:10])
-  
   ## run gene module analysis. 2 is highResponder and 0 is lowResponder
   if(markdown == F){
     qs.results <-  qusage(eset.nodup.final, labels, "2-0", geneSetDB)
@@ -264,7 +265,7 @@ meta_analysis <- function(geneSetDB,
     gene_symbols  <- as.character(fData(eset)$geneSymbol)
     eset <- exprs(eset)
     print("I am lys_139 pathway sample before run_qs")
-    lys_139 <- c("AP1S2", "CD68", "CTSB", "CTSD", "CTSH", "CTSS", "GAA", "NPC2", 
+    lys_139 <- c("AP1S2", "CD68", "CTSB", "CTSD", "CTSH", "CTSS", "GAA", "NPC2",
                  "PSAP", "SLC11A1", "SORT1")
     idx <- which(gene_symbols %in% lys_139)
     print(eset[idx, 1:10])

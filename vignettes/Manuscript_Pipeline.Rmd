@@ -41,14 +41,14 @@ knitr::opts_chunk$set(echo=FALSE,
                fig.align = "center")
 ```
 
-```{r include=TRUE}
+```{r include=FALSE}
+# Setup initial directory structure and options for Preprocessing step
+
 studies <- c("SDY212", "SDY63", "SDY404", "SDY400", "SDY80", "SDY67")
 
-# Setup initial directory structure
 ImmSig_dir <- file.path(getwd(),"ImmSig_Analysis")
 dir.create(ImmSig_dir)
 
-# 1. Extract and pre-process data from ImmuneSpace, ImmPort, or GEO databases
 pp_dir <- file.path(ImmSig_dir,"PreProc_Data")
 dir.create(path = pp_dir)
 
@@ -65,7 +65,11 @@ yale.anno <- "original"
 sdy80.process <- FALSE
 sdy80.anno <- "original"
 sdy80.norm <- FALSE
-    
+
+```
+
+```{r include=TRUE}
+# 1. Extract and pre-process data from ImmuneSpace, ImmPort, or GEO databases    
 for(sdy in studies){
     if( !(sdy %in% c("SDY400","SDY80")) | (sdy == "SDY80" & sdy80.process == TRUE) ){
         makeGE(sdy,
@@ -122,17 +126,21 @@ for(sdy in studies){
 
 ***
 
-```{r include=TRUE}
-# Step 2: Combine pre-processed files into Rds (BioConductor eset)
+```{r include=FALSE}
+# Setup for Rds Generation (BioConductor eset)
 rds_dir <- file.path(ImmSig_dir, "Rds_data")
 dir.create(path = rds_dir)
+```
 
+```{r include=FALSE}
 combined_hai <- combine_hai_data(hai_dir, sdy80.process, output_dir = rds_dir)
 for(sdy in studies){
   make_rds(sdy, ge_dir, sdy80.process, combined_hai, output_dir = rds_dir)
 }
+```
 
-# Step 3: Run meta analysis script
+```{r include=FALSE}
+# Setup for Meta Analyis script
 data("geneSetDB")
 FDR.cutoff <- 0.5
 pvalue.cutoff <- 0.01
