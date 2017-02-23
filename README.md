@@ -12,19 +12,31 @@ user-defined options.
 Getting Started
 ===============
 
-**To download and install the package, incl. vignette:**
+**To download and install the package for interactive work**
 
 ```R
 library(devtools)
-install_github("ehfhcrc/ImmSigPkg", build_vignettes = TRUE)
+install_github("ehfhcrc/ImmSigPkg")
 library(ImmSigPkg)
 ```
 
-**View vignette:** 
-`vignette(topic = "Manuscript_Pipeline", package = "ImmSigPkg")`
+**To install with vignette:** 
+```R
+# in console
+git clone https://github.com/ehfhcrc/ImmSigPkg.git
+
+# in R
+setwd(<path_to_ImmSigPkg_source_code_dir>)
+library(devtools)
+build_vignettes()
+vignette(topic="Manuscript_Pipeline", package="ImmSigPkg")
+```
 
 Note: the vignette shows the output of the pipeline using the original parameters and  
-takes approximately 45 minutes to build.
+takes approximately 45 minutes to build.  At this time, it is recommended to build
+from source without compression by cloning the repo because there are unexplained
+differences between vignette output for the old cohort when compressed versus knit directly.
+This may be due to an R option used in the qusage() call within the meta_analysis().
 
 Running the Pipeline
 ====================
