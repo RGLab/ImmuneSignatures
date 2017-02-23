@@ -68,7 +68,7 @@ sdy80.norm <- FALSE
 
 ```
 
-```{r include=TRUE}
+```{r include=FALSE}
 # 1. Extract and pre-process data from ImmuneSpace, ImmPort, or GEO databases    
 for(sdy in studies){
     if( !(sdy %in% c("SDY400","SDY80")) | (sdy == "SDY80" & sdy80.process == TRUE) ){
@@ -233,8 +233,3 @@ DT::datatable(old_res_dfs$val)
 - **geneSetDB** = [STRING] The file path used for gene set definition.  Currently file is loaded with data().
 
 ***
-
-```{r include=TRUE}
-options()
-```
-

@@ -42,10 +42,6 @@ run_qs <- function(eset, gene_symbols, labels, validation, geneSetDB, markdown){
 
   if(validation){
     eset.nodup.final <- eset.nodup
-    print("I am lys_139 pathway sample right before qusage")
-    lys_139 <- c("AP1S2", "CD68", "CTSB", "CTSD", "CTSH", "CTSS", "GAA", "NPC2",
-                 "PSAP", "SLC11A1", "SORT1")
-    print( eset.nodup.final[which(rownames(eset.nodup.final) %in% lys_139), 1:10] )
     } # EH NOTE: only difference b/t discover and val
 
   if(any(rownames(eset.nodup) == "")){
@@ -264,11 +260,6 @@ meta_analysis <- function(geneSetDB,
     labels <- as.character(pData(eset)[,endPoint])
     gene_symbols  <- as.character(fData(eset)$geneSymbol)
     eset <- exprs(eset)
-    print("I am lys_139 pathway sample before run_qs")
-    lys_139 <- c("AP1S2", "CD68", "CTSB", "CTSD", "CTSH", "CTSS", "GAA", "NPC2",
-                 "PSAP", "SLC11A1", "SORT1")
-    idx <- which(gene_symbols %in% lys_139)
-    print(eset[idx, 1:10])
   }
 
   qs.results <- run_qs(eset, gene_symbols, labels, validation = T, geneSetDB, markdown)
