@@ -20,7 +20,7 @@ install_github("ehfhcrc/ImmSigPkg")
 library(ImmSigPkg)
 ```
 
-**To install with vignette:** 
+**To see vignette:** 
 ```R
 # in console
 git clone https://github.com/ehfhcrc/ImmSigPkg.git
@@ -29,20 +29,19 @@ git clone https://github.com/ehfhcrc/ImmSigPkg.git
 setwd(<path_to_ImmSigPkg_source_code_dir>)
 library(devtools)
 build_vignettes()
-vignette(topic="Manuscript_Pipeline", package="ImmSigPkg")
+# open vignette at <working_dir>/ImmSigPkg/Inst/Doc/Manuscript_Pipeline.html
 ```
 
-Note: the vignette shows the output of the pipeline using the original parameters and  
-takes approximately 45 minutes to build.  At this time, it is recommended to build
-from source without compression by cloning the repo because there are unexplained
-differences between vignette output for the old cohort when compressed versus knit directly.
-This may be due to an R option used in the qusage() call within the meta_analysis().
+Note: the vignette shows the output of the pipeline using the original parameters and takes approximately 
+45 minutes to build.  At this time, it is recommended to build from source without compression by cloning 
+the repo locally because there are unexplained differences between output for the old cohort when compressed 
+versus built / knit directly. This may be due to an R environmental option used in the `qusage()` call within `meta_analysis()`.
 
 Running the Pipeline
 ====================
 
 To run the entire pipeline you can execute the function `hipc_full_pipeline()` and
-follow the prompts.  It is recommended to use the original parameters the first run
+follow the prompts.  It is recommended to use the original parameters for the first run
 to ensure things flow smoothly.  This may take about 1 hour on your local machine. 
 Once you have run everything through once and generated rawdata files (.txt) as well 
 as .rds expressionSet files, you may run the meta analysis with different parameters 
