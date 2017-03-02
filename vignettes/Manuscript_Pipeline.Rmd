@@ -86,7 +86,6 @@ for(sdy in studies){
 
 ### PARAMETERS:
 - **Yale Studies Gene Expression Annotation: ** `r yale.anno`
-- **Processing of SDY80/CHI-nih from IS rawdata: ** `r sdy80.process`
 - **SDY80/CHI-nih Gene Expression Annotation: ** `r sdy80.anno`
 - **SDY80/CHI-nih GE normalization via pipeleine: ** `r sdy80.norm`
 
