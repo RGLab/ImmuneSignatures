@@ -4,7 +4,7 @@
 \alias{hipc_make_rds}
 \title{Generates rds objects from studies given the study names and directories holding the rawdata.}
 \usage{
-hipc_make_rds(studies, hai_dir, ge_dir, sdy80.process, rds_dir)
+hipc_make_rds(studies, hai_dir, ge_dir, rds_dir)
 }
 \arguments{
 \item{studies}{a vector of characters holding the study names for which to generate eSets}

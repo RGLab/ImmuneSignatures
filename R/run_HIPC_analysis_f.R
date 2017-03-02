@@ -17,22 +17,12 @@ hipc_preprocess <- function(studies, hai_dir, ge_dir, rawdata_dir, orig_params =
     yale.anno <- readline(prompt =
                             "Yale Studies' Gene Annotation: [H = HIPC manuscript, l = R library, m = Illumina manifest]  ")
     yale.anno <- ifelse(yale.anno %in% c("H", "h", ""), "o", yale.anno)
-    sdy80.process <- readline(prompt =
-                                "Process SDY80 raw data or use manuscript tables? [p = process / H = HIPC manuscript] ")
-    sdy80.process <- ifelse(sdy80.process %in% c("H", "h", ""), FALSE, TRUE)
-
-    if(sdy80.process == TRUE){
-      sdy80.anno <- readline(prompt = "SDY80 Gene Annotation: [H = HIPC manuscript, l = R library]  ")
-      sdy80.anno <- ifelse(sdy80.anno %in% c("H", "h", ""), "o", sdy80.anno)
-      sdy80.norm <- readline(prompt = "Re-normalize SDY80 GE data? [T / f]  ")
-      sdy80.norm <- ifelse(sdy80.norm %in% c(T, "", "t", "T"), TRUE, FALSE)
-    }else{
-      sdy80.anno <- "o"
-      sdy80.norm <- F
-    }
+    sdy80.anno <- readline(prompt = "SDY80 Gene Annotation: [H = HIPC manuscript, l = R library]  ")
+    sdy80.anno <- ifelse(sdy80.anno %in% c("H", "h", ""), "o", sdy80.anno)
+    sdy80.norm <- readline(prompt = "Re-normalize SDY80 GE data? [T / f]  ")
+    sdy80.norm <- ifelse(sdy80.norm %in% c(T, "", "t", "T"), TRUE, FALSE)
   }else{
     yale.anno <- "o"
-    sdy80.process <- F
     sdy80.anno <- "o"
     sdy80.norm <- F
   }
@@ -46,26 +36,18 @@ hipc_preprocess <- function(studies, hai_dir, ge_dir, rawdata_dir, orig_params =
   sdy80.anno <- input_map[[sdy80.anno]]
 
   for(sdy in studies){
-    if( !(sdy %in% c("SDY400","SDY80")) | (sdy == "SDY80" & sdy80.process == TRUE) ){
-        print(paste0("Generating GE for ", sdy))
-        makeGE(sdy,
-               yale.anno = yale.anno,
-               sdy80.anno = sdy80.anno,
-               sdy80.norm = sdy80.norm,
-               output_dir = ge_dir,
-               rawdata_dir = rawdata_dir)
-        print(paste0("Generating HAI for ", sdy))
-        makeHAI(sdy, output_dir = hai_dir)
-        print(paste0("Generating Demo for ", sdy))
-        makeDemo(sdy, output_dir = ge_dir)
-    }else if(sdy == "SDY400"){
+      print(paste0("Generating GE for ", sdy))
+      makeGE(sdy,
+             yale.anno = yale.anno,
+             sdy80.anno = sdy80.anno,
+             sdy80.norm = sdy80.norm,
+             output_dir = ge_dir,
+             rawdata_dir = rawdata_dir)
       print(paste0("Generating HAI for ", sdy))
       makeHAI(sdy, output_dir = hai_dir)
       print(paste0("Generating Demo for ", sdy))
       makeDemo(sdy, output_dir = ge_dir)
-    }
   }
-  return(sdy80.process)
 }
 
 #' Generates rds objects from studies given the study names and directories holding the rawdata.
@@ -75,12 +57,12 @@ hipc_preprocess <- function(studies, hai_dir, ge_dir, rawdata_dir, orig_params =
 #' @param ge_dir a path for the preprocessed GE and demographic data
 #' @param rds_dir a path for the output files (rds)
 #' @export
-hipc_make_rds <- function(studies, hai_dir, ge_dir, sdy80.process, rds_dir){
+hipc_make_rds <- function(studies, hai_dir, ge_dir, rds_dir){
   message("Now combining files for each study into rds / eset file")
   message("\n")
-  combined_hai <- combine_hai_data(hai_dir, sdy80.process, output_dir = rds_dir)
+  combined_hai <- combine_hai_data(hai_dir, output_dir = rds_dir)
   for(sdy in studies){
-    make_rds(sdy, ge_dir, sdy80.process, combined_hai, output_dir = rds_dir)
+    make_rds(sdy, ge_dir, combined_hai, output_dir = rds_dir)
   }
 }
 
@@ -96,8 +78,8 @@ hipc_make_rds <- function(studies, hai_dir, ge_dir, sdy80.process, rds_dir){
 hipc_meta_analysis <- function(rds_dir, cohort, orig_params = T, output_dir){
 
   if(orig_params == F){
-    FDR.cutoff <- as.float(readline(prompt = "Input FDR.cutoff (orig = 0.5):  "))
-    pvalue.cutoff <- as.float(readline(prompt = "Input pvalue.cutoff (orig = 0.01):  "))
+    FDR.cutoff <- as.numeric(readline(prompt = "Input FDR.cutoff (orig = 0.5):  "))
+    pvalue.cutoff <- as.numeric(readline(prompt = "Input pvalue.cutoff (orig = 0.01):  "))
     endPoint <- as.integer(readline(prompt = "Input HAI discretization low % cutoff [20 or 30]:  "))
     endPoint <- paste0("fc_res_max_d", endPoint)
     adjusted <- readline(prompt = "Adjusted = [T / f] ")
@@ -201,7 +183,7 @@ hipc_full_pipeline <- function(){
     orig_params <- readline(prompt = "Use original parameters from HIPC manuscript? [ T / f ] ")
     orig_params <- ifelse(orig_params %in% c(T, "", "t", "T"), TRUE, FALSE)
 
-    sdy80.process <- hipc_preprocess(studies, hai_dir, ge_dir, rawdata_dir, orig_params)
+    hipc_preprocess(studies, hai_dir, ge_dir, rawdata_dir, orig_params)
   }
 
   cat("Moving on to RDS Generation")
@@ -212,7 +194,7 @@ hipc_full_pipeline <- function(){
   dir.create(path = rds_dir)
 
   if(run_rds %in% c(T, "T", "t", "")){
-    hipc_make_rds(studies, hai_dir, ge_dir, sdy80.process, rds_dir)
+    hipc_make_rds(studies, hai_dir, ge_dir, rds_dir)
   }
 
   cat("Moving on to Meta Analysis")

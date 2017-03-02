@@ -62,18 +62,13 @@ capwords <- function(s, strict = FALSE) {
 #' Function creates combined hai table and rds file from all six studies
 #'
 #' @param hai_dir Directory holding HAI data tables
-#' @param sdy80.process Process SDY80, TRUE, or use table from original HIPC work, FALSE
 #' @param output_dir Output Directory
 #' @export
-combine_hai_data <- function(hai_dir, sdy80.process, output_dir){
+combine_hai_data <- function(hai_dir, output_dir){
   file_list <- unlist(lapply(hai_dir,
                             list.files,
                             recursive = TRUE,
                             full.names = TRUE))
-
-  if(sdy80.process == F){
-    file_list <- c(file_list, paste0(hai_dir,"/CHI-nih_combined_hai_titer_table.txt"))
-  }
 
   message("************* MAKING COMBINED HAI RDS ************************")
 
@@ -100,13 +95,7 @@ combine_hai_data <- function(hai_dir, sdy80.process, output_dir){
       f <- f[i]
       message("    -> Processing ", mfc_base[i], ": ", basename(f))
 
-      # NTS: Edit back to no conditional once CHI hai sorted out
-      if(sdy == "CHI" & sdy80.process == F){
-        hai <- as.data.frame(orig_chi_hai)
-        rownames(hai) <- hai$subject
-      }else{
-        hai <- read.table(f, header = TRUE, sep = "\t", row.names = 1L)
-      }
+      hai <- read.table(f, header = TRUE, sep = "\t", row.names = 1L)
 
       subjects <<- unique(c(subjects, rownames(hai)))
       col <- grep("_max", colnames(hai))
@@ -153,11 +142,10 @@ combine_hai_data <- function(hai_dir, sdy80.process, output_dir){
 #'
 #' @param sdy Study
 #' @param ge_dir Directory holding gene expression data tables
-#' @param sdy80.process Process SDY80, TRUE, or use table from original HIPC work, FALSE
 #' @param combined_hai Combined hai data frame
 #' @param output_dir Output directory
 #' @export
-make_rds <- function(sdy, ge_dir, sdy80.process, combined_hai, output_dir){
+make_rds <- function(sdy, ge_dir, combined_hai, output_dir){
 
   message(paste0("**************** Processing ", sdy, " *******************"))
 
@@ -170,9 +158,7 @@ make_rds <- function(sdy, ge_dir, sdy80.process, combined_hai, output_dir){
   }
 
   # expression data
-  if(sdy == "SDY80" & sdy80.process == F){
-    e <- as.data.frame(orig_chi_GE)
-  }else if(sdy == "SDY400"){
+  if(sdy == "SDY400"){
     e <- as.data.frame(orig_400_GE)
   }else{
     e <- read.table(ge_file, sep = "\t", header = TRUE)
@@ -218,8 +204,6 @@ make_rds <- function(sdy, ge_dir, sdy80.process, combined_hai, output_dir){
 
   if( file.exists(pfile <- gsub("GEMatrix", "demographics", ge_file, fixed = TRUE)) ){
     p <- read.table(pfile, sep = "\t", header = TRUE)
-  }else if( (sdy == "SDY80" | sdy == "CHI-nih") & sdy80.process == F ){
-    p <- orig_chi_demo
   }else{
     warning("No phenotypic data for ", sdy)
   }

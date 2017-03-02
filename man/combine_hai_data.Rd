@@ -4,12 +4,10 @@
 \alias{combine_hai_data}
 \title{Function creates combined hai table and rds file from all six studies}
 \usage{
-combine_hai_data(hai_dir, sdy80.process, output_dir)
+combine_hai_data(hai_dir, output_dir)
 }
 \arguments{
 \item{hai_dir}{Directory holding HAI data tables}
-
-\item{sdy80.process}{Process SDY80, TRUE, or use table from original HIPC work, FALSE}
 
 \item{output_dir}{Output Directory}
 }

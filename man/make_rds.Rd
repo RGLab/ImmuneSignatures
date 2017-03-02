@@ -4,14 +4,12 @@
 \alias{make_rds}
 \title{Function to generate expressionSet object and save as Rds file}
 \usage{
-make_rds(sdy, ge_dir, sdy80.process, combined_hai, output_dir)
+make_rds(sdy, ge_dir, combined_hai, output_dir)
 }
 \arguments{
 \item{sdy}{Study}
 
 \item{ge_dir}{Directory holding gene expression data tables}
-
-\item{sdy80.process}{Process SDY80, TRUE, or use table from original HIPC work, FALSE}
 
 \item{combined_hai}{Combined hai data frame}
 

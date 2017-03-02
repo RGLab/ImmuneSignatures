@@ -238,7 +238,7 @@ meta_analysis <- function(geneSetDB,
 
 
   if(markdown == F){
-    print(paste0("Validate signature gene modules for", cohort, " cohort, study - ", validation.sdy))
+    print(paste0("Validate signature gene modules for ", cohort, " cohort, study - ", validation.sdy))
   }
 
   dataset_name <- paste(validation.sdy, cohort , endPoint, sep = "_" )
@@ -253,7 +253,7 @@ meta_analysis <- function(geneSetDB,
     eset <- eset[, which(pData(eset)['Condition'] == 'd0' & pData(eset)['Age'] < 36)]
     if(markdown == F){ print(summary(pData(eset)[c('Age.class', 'Response', 'Condition')])) }
     labels <- as.character(pData(eset)[,endPoint])
-    gene_symbols <- rownames(eset) <- as.character(fData(eset)$gs)
+    gene_symbols <- rownames(eset) <- as.character(fData(eset)$geneSymbol)
 
   }else{
     if(markdown == F){ print(summary(pData(eset)[c('Age.class', 'Response', 'Condition')])) }

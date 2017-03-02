@@ -92,7 +92,7 @@ get_GSE_files <- function(sdy, rawdata_dir){
   }else if(sdy == "SDY404"){
     link <- "ftp://ftp.ncbi.nlm.nih.gov/geo/series/GSE59nnn/GSE59654/suppl/GSE59654_non-normalized.txt.gz"
   }else if(sdy == "SDY400"){
-    print("data not available yet")
+    link <- "ftp://ftp.ncbi.nlm.nih.gov/geo/series/GSE59nnn/GSE59743/matrix/GSE59743_series_matrix.txt.gz"
   }else if(sdy == "SDY80"){
     link <- "ftp://ftp.ncbi.nlm.nih.gov/geo/series/GSE47nnn/GSE47353/matrix/GSE47353_series_matrix.txt.gz"
   }
@@ -200,11 +200,6 @@ makeGE <- function(sdy,
                    output_dir,
                    rawdata_dir){
 
-  # instantiate variables to hold data for output at end
-  probe_ids <- ""
-  gene_syms <- ""
-  final_expr_vals <- ""
-
   # Get raw data and process it uniquely for each study
   if(sdy == "SDY212" | sdy == "SDY67"){
     # build links from Immunespace and then download
@@ -269,7 +264,22 @@ makeGE <- function(sdy,
 
     if(sdy != "SDY80"){
 
-      rawdata <- as.data.frame(fread(inputFiles))
+      if(sdy == "SDY400"){
+        rawdata <- read.table(inputFiles, skip = 64, header = T, fill = T)
+        rawdata <- rawdata[ 1:(dim(rawdata)[1] - 1), ] # drop the last row with !series_matrix_table_end and NA vals
+        colnames(rawdata) <- read.table(inputFiles,
+                                        sep = "\t",
+                                        header = F,
+                                        stringsAsFactors = F,
+                                        fill = T,
+                                        nrows = 1,
+                                        skip = 31)
+        colnames(rawdata)[1] <- "ID_REF"
+
+      }else{
+        rawdata <- as.data.frame(fread(inputFiles))
+      }
+
 
       if(yale.anno == "original"){
         anno_tbl <- SDY63_anno_tbl # "SDY63_anno_tbl.tsv" was generated from original file (SDY63.GEMatrix.txt)
@@ -295,10 +305,20 @@ makeGE <- function(sdy,
                            values,
                            probe_ids,
                            dflt_ret = "")
+
+      # SDY400 has different headers
       rawdata <- rawdata[ , grepl("PBMC", names(rawdata))]
 
-      # Norm / Map
-      final_expr_vals <- norm_map_mx(sdy, rawdata, "Sub.Org.Accession", "User.Defined.ID")
+      if(sdy == "SDY400"){
+        final_expr_vals <- rawdata
+        colnames(final_expr_vals) <- unname(map_headers(sdy,
+                                                        colnames(rawdata),
+                                                        "Sub.Org.Accession",
+                                                        "User.Defined.ID"))
+
+      }else{
+        final_expr_vals <- norm_map_mx(sdy, rawdata, "Sub.Org.Accession", "User.Defined.ID")
+      }
 
       # SDY404 ids from Immport have actual day the sample was taken (e.g. 4 instead of 2) according to
       # personal communication from Stefan Avey at Yale. However this creates conflicts with the original
@@ -320,9 +340,11 @@ makeGE <- function(sdy,
         })
         colnames(final_expr_vals) <- colnms
       }
+
     }else if(sdy == "SDY80"){
 
       rawdata <- as.data.frame(fread(inputFiles, skip = 96, header = T, fill = T))
+      probe_ids <- rawdata$ID_REF
 
       if(sdy80.anno == "original"){
         gene_syms <- hashmap(SDY80_orig_anno$probeID, SDY80_orig_anno$gs, probe_ids)
@@ -337,7 +359,7 @@ makeGE <- function(sdy,
       # successfully mapped, which is approximately 45%.  Unsure why this was done.
       gene_syms <- gene_syms[which(sapply(gene_syms, FUN = function(x){!is.na(x)}))]
       probe_ids <- probe_ids[which(probe_ids %in% names(gene_syms))]
-      rawdata <- rawdata[ which(rawdata$probe_ids %in% names(gene_syms)), ]
+      rawdata <- rawdata[ which(rawdata$ID_REF %in% names(gene_syms)), ]
       rawdata <- rawdata[,-1]
 
       if(sdy80.norm == F){
@@ -361,101 +383,3 @@ makeGE <- function(sdy,
 }
 
 
-#-----------DEPRECATED METHODS--------------------------------------------------------
-# FOR SDY67
-# Using this manifest file from Illumina because bioconductor library for 450k methylation is defunct
-# and no longer mainted.Available for download:
-# http://support.illumina.com/array/array_kits/infinium_humanmethylation450_beadchip_kit/downloads.html
-# hmn450k_ann_tbl <- read.table(file.path(pp_dir,"IlluminaHuman_450kMethylation_anno_table.txt"),
-#                               stringsAsFactors = F, sep = "\t", header = T)
-
-
-# FOR GEO ORIGINALLY SDY80
-# create links with following format and pull data:
-# https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?view=data&acc=GSM1147759&id=13600&db=GeoDb_blob98
-# NTS: GSE for SDY80 is GSE47353
-# base <- "https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?view=data&acc="
-# joint <- "&id="
-# tail <- "&db=GeoDb_blob98"
-#
-# tbl_list <- lapply(geo_acc, FUN = function(x){
-#   # generate id and link
-#   digits <- gsub("GSM", "", x)
-#   id <- as.integer(digits) - 1134159
-#   link <- paste0(base, x, joint, id, tail)
-#
-#   # scrape link for content and parse to table, return with probe ID
-#   dump <- GET(link)
-#   dump_contents <- read_html(dump$content)
-#   dump_contents_list <- xmlToList(xmlParse(dump_contents))
-#   raw_table <- dump_contents_list$body$font$pre[[4]]
-#   tbl_con<- textConnection(raw_table)
-#   data <- read.table(tbl_con, sep = "\t", stringsAsFactors = F, header = F)
-#   colnames(data) <- c("probeID", x)
-#   return(data)
-# })
-#
-# # return list of tables
-# return(tbl_list)
-
-# # get data via scraping geo site and parsing into list of tables
-# con <- CreateConnection(sdy)
-# gef <- get_gef(con, sdy)
-# probe_ids <- suppressMessages(Table(getGEO(gef$geo_accession[[1]]))[,1])
-# val_list <- suppressMessages(get_GEOvals(destdir = rawdata_dir, gsm_list = gef$geo_accession))
-# rawdata <- quickdf(val_list)
-# rawdata <- cbind(probe_ids, rawdata)
-
-
-#
-# # for SDY80, need to build matrix from individual accessions
-# get_GEOvals <- function(destdir, gsm_list){
-#   val_list <- lapply(gsm_list, FUN = function(x){
-#     expr_vals <- Table(getGEO(x, destdir = ))[,2]
-#   })
-#   names(val_list) <- gsm_list
-#   return(val_list)
-# }
-
-
-# # For SDY80, SDY67 need to build matrix from list of vectors holding GE values
-# list2matrix <- function(val_list, colnms){
-#   expr_mx <- data.frame(matrix(unlist(val_list), ncol=length(colnms), byrow=F))
-#   colnames(expr_mx) <- colnms
-#   return(expr_mx)
-# }
-
-#NTS - need to fix all this below to work! (expr_mx should be a matrix of values with correct colnames)
-# So, prob have to
-
-# inputFiles here only contain 1 subject worth of data per file, therefore
-# need to iterate through and build a master file with all subjects to return.
-# NOTE: no normalization was done on the original file and that is mimicked her.
-# gs_tbl <- fread(inputFiles[[1]])
-# gs_tbl$GENE_SYMBOL <- toupper(gs_tbl$GENE_SYMBOL)
-# gs_tbl <- gs_tbl[ order(GENE_SYMBOL),]
-# gene_syms <- gs_tbl$GENE_SYMBOL
-#
-# expr_vals_list <- lapply(inputFiles, FUN = function(x){
-#   fname <- basename(x)
-#   targ_row <- gef[which(gef$file_info_name == fname),]
-#   subid <- substr(targ_row$participant_id[[1]],1,9)
-#   day_coll <- as.integer(targ_row$study_time_collected)
-#   subid <- paste0(subid,"_d",day_coll)
-#
-#   #read in the table and relabel colnames
-#   tmp <- fread(x)
-#   colnames(tmp) <- c("SYMBOL",subid)
-#   tmp$SYMBOL <- toupper(tmp$SYMBOL)
-#   tmp <- tmp[ order(SYMBOL),]
-#
-#   # make sure the gene symbol vec for the curr subject matches original
-#   if(!all.equal(tmp$SYMBOL,gs_tbl$GENE_SYMBOL)){
-#     stop(paste0("Gene Symbols in ",fname,
-#                 " do not match those in first file. Please check before re-running."))
-#   }
-#
-#   # pull out expr values and return as vec
-#   return(tmp[,2])
-# })
-# final_expr_vals <- as.data.frame(do.call(cbind, expr_vals_list))

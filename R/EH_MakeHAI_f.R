@@ -43,6 +43,12 @@ robust_med <- function(vec){
   return(median(vec[!is.na(vec) & !is.infinite(vec)]))
 }
 
+r_mad <- function(vec){
+  robmed <- robust_med(vec)
+  mad <- median(abs(vec - robmed))
+  return(mad)
+}
+
 # Seems computationally costly, but enough edge cases merit checking for valid data before extraction
 # Valid means at least two titers per strain, with one being zero and the other greater than zero.
 sub_check <- function(sub_df, strains){
@@ -150,34 +156,28 @@ drop_cols <- function(df, cols_to_drop){
 #' @export
 makeHAI <- function(sdy, output_dir){
 
-  # Get rawdata from ImmuneSpace Connection or file (SDY80)
   # SDY80's IS data is not the same as original because observations were only allowed
   # if they had GE data as well (GEO standards).  The original data is available via
-  # Immport in the SQL dump.  However, for simplicity, the file preloaded in package
+  # Immport in the SQL dump.  However, for simplicity, the file preloaded in package.
   if(sdy == "SDY80"){
-    orig_raw <- as_tibble(SDY80_rawtiterdata)
-    origd0 <- filter(orig_raw, day == 0)
-    origd0 <- dplyr::select(origd0, -day)
-    names(origd0) <- c("subject","d0_H1N1", "d0_A_Brisbane", "d0_A_Uruguay","d0_B_Brisbane")
-
-    origd28 <- filter(orig_raw, day == 70)
-    origd28 <- dplyr::select(origd28, -day)
-    names(origd28) <- c("subject","d28_H1N1", "d28_A_Brisbane", "d28_A_Uruguay","d28_B_Brisbane")
-
-    joined_data <- left_join(origd0, origd28, by = "subject")
-    joined_data <- joined_data[complete.cases(joined_data),]
 
     firstpart <- c("cohort", "d0_std_norm_H1N1", "d0_std_norm_A_Uruguay", "d0_std_norm_A_Brisbane",
-                   "d0_std_norm_B_Brisbane", "fc_std_norm_H1N1", "fc_std_norm_A_Uruguay",
-                   "fc_std_norm_A_Brisbane", "fc_std_norm_B_Brisbane")
+                  "d0_std_norm_B_Brisbane", "fc_std_norm_H1N1", "fc_std_norm_A_Uruguay",
+                  "fc_std_norm_A_Brisbane", "fc_std_norm_B_Brisbane")
     last_names <- c("d0_norm_max","fc_norm_max","fc_norm_max_ivt", "d0_max",
-                    "fc_max","fc_max_4fc", "fc_norm_max_d20","fc_norm_max_d30",
-                    "fc_res_max","fc_res_max_d20","fc_res_max_d30")
+                   "fc_max","fc_max_4fc", "fc_norm_max_d20","fc_norm_max_d30",
+                   "fc_res_max","fc_res_max_d20","fc_res_max_d30")
     allnms <- c(firstpart, last_names)
-    tmpmat <- matrix(NA,ncol = 20, nrow = 64)
+    tmpmat <- matrix(NA, ncol = 20, nrow = 64)
     colnames(tmpmat) <- allnms
 
-    titer_data <- data.frame(joined_data, tmpmat)
+    # This removes all subjects without original demo information, 223 has no IS sub id
+    # and is removed post-calculations
+    rawdata <- SDY80_rawtiterdata_v2 [ which(
+      (SDY80_rawtiterdata_v2$subject >=200 & SDY80_rawtiterdata_v2$subject <= 284)
+      ), ]
+
+    titer_data <- data.frame(rawdata, tmpmat)
 
     # Adding cohort definition from Yuri comments re: code
     old_subs <- c(212, 229, 232, 233, 244, 245, 250, 251, 260, 261, 273, 277, 280)
@@ -185,7 +185,7 @@ makeHAI <- function(sdy, output_dir){
 
     subids <- titer_data$subject
     strains <- c("H1N1", "A_Brisbane", "A_Uruguay","B_Brisbane")
-    cohorts <- c("all", "young", "old")
+    cohorts <- c("Young", "Old")
     opts <- c("d0_","fc_")
     str_d28_names <- ""
     for(virus in strains){
@@ -298,15 +298,14 @@ makeHAI <- function(sdy, output_dir){
     for(virus in strains){
       std_norm_col <- paste0(ver, "std_norm_", virus)
       tcol <- titer_data[[paste0(ver, virus)]]
-      colmed <- glob_vals[[paste0(ver,"med")]][[virus]]
-      colsd <- glob_vals[[paste0(ver,"sd")]][[virus]]
       if(sdy == "SDY80"){
-        mad <- median(abs(tcol - colmed))
-        robust_med <- robust_med(tcol)
-        titer_data[std_norm_col] <- (tcol - robust_med) / mad
+        robmed <- robust_med(tcol)
+        titer_data[std_norm_col] <- (tcol - robmed) / r_mad(tcol)
         rep_ls <- titer_data[std_norm_col] == Inf
-        titer_data[std_norm_col][rep_ls] <- NA
+        titer_data[std_norm_col][rep_ls] <- NaN
       }else{
+        colmed <- glob_vals[[paste0(ver,"med")]][[virus]]
+        colsd <- glob_vals[[paste0(ver,"sd")]][[virus]]
         titer_data[std_norm_col] <- (tcol - colmed) / colsd
       }
     }
@@ -334,12 +333,10 @@ makeHAI <- function(sdy, output_dir){
   P <- ranked / (sum(!is.na(ranked)) + 1) # +1 needed to avoid 0,1 values that generate inf, -inf
   titer_data$fc_norm_max_ivt <- qnorm(P)
 
-  # Need to remove SDY80 subjects that have low flow results or NA for B-Brisbane
+  # Need to remove SDY80 subjects that have low flow results, NA for B-Brisbane, or not in original results
   if(sdy == "SDY80"){
     low_flow <- c(206, 226, 243, 247, 249, 252, 254, 263, 270, 275, 281, 282)
-    brisbane_NA <- c(216, 220, 225, 255, 258, 264, 266, 269, 278, 287, 295, 299, 302)
-    subs_rm <- c(low_flow, brisbane_NA)
-    titer_data <- titer_data[ which(!(titer_data$subject %in% subs_rm)), ]
+    titer_data <- titer_data[ which(!(titer_data$subject %in% low_flow)), ]
   }
 
   # setup meta-list for possible titer tables based on cohorts: young, old, and combined are possible
@@ -405,9 +402,10 @@ makeHAI <- function(sdy, output_dir){
 
   for(name in names(submxs)){
     df <- submxs[[name]]
+    tmp_mad <- r_mad(df$fc_norm_max_ivt)
     df$bin <- cut(df$d0_norm_max,
                   breaks = c(-Inf, bins[[name]], Inf),
-                  labels = 1:(length(bins[[name]])+1) )
+                  labels = 1:( length(bins[[name]]) + 1) )
 
     # need count of bin members to force NA value for bins with < 3 members.
     # Original code was in Matlab and may not have generated median / sd vals for < 3 groups.
@@ -416,14 +414,23 @@ makeHAI <- function(sdy, output_dir){
       dplyr::mutate(count = n()) %>% # MUST name 'dplyr' in front of mutate to get dplyr::n()
       ungroup()
 
-    df = df %>%
-      group_by(bin) %>%
-      mutate(fc_res_max =
-               ifelse( count > 2 | sdy == "SDY63", # SDY63 Old allows a 2 count group to be processed
-                       (fc_norm_max_ivt - median(fc_norm_max_ivt, na.rm=T)) /
-                         sd(fc_norm_max_ivt, na.rm=T),
-                       NA)) %>%
-      ungroup()
+    if(sdy == "SDY80"){
+      df = df %>%
+        group_by(bin) %>%
+        mutate(fc_res_max = (fc_norm_max_ivt - median(fc_norm_max_ivt)) / r_mad(fc_norm_max_ivt)) %>%
+        ungroup()
+
+      df$fc_res_max <- ifelse(df$fc_res_max %in% c(Inf, NA), NaN, df$fc_res_max)
+    }else{
+      df = df %>%
+        group_by(bin) %>%
+        mutate(fc_res_max =
+                 ifelse( count > 2 | sdy == "SDY63", # SDY63 Old allows a 2 count group to be processed
+                         (fc_norm_max_ivt - median(fc_norm_max_ivt, na.rm=T)) / sd(fc_norm_max_ivt, na.rm=T),
+                         NaN)) %>%
+        ungroup()
+    }
+
 
     # discretize for all combinations of ("fc_norm_max","fc_res_max") x ("d20","d30")
     in_cols <- c("fc_norm_max", "fc_res_max")
@@ -442,10 +449,11 @@ makeHAI <- function(sdy, output_dir){
     # output tibble / df as a tab-delimited file
     base <- "_hai_titer_table.txt"
     fname <- ""
+
     if(sdy == "SDY80"){
       fname <- paste0("CHI-nih_", name, base)
       id_hsh <- hash(SDY80_IDmap$bioSampleID, SDY80_IDmap$participantID)
-      titer_data$subject <- sapply(titer_data$subject, FUN = function(x){
+      df$subject <- sapply(df$subject, FUN = function(x){
         val <- id_hsh[[as.character(x)]]
         return(ifelse(is.null(val), 223, val))
       })
@@ -463,18 +471,6 @@ makeHAI <- function(sdy, output_dir){
                 row.names = FALSE)
   }
 }
-
-# for SDY80
-# bind <- data.frame(joined_data, tmpmat)
-#
-#
-# # Following subjects removed
-
-
-
-# titer_data <- subset(bind, !(bind$subject %in% subs_rm))
-#
-
 
 
 
