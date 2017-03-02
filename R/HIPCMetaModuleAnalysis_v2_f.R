@@ -55,6 +55,11 @@ run_qs <- function(eset, gene_symbols, labels, validation, geneSetDB, markdown){
     labels <-  labels[-which(is.na(labels))]
   }
 
+  if(dim(eset)[1] == 23113){
+    file <- "/home/ehenrich/R/Gen_Test/sdy67_eset.txt"
+    write.table(eset.nodup.final, file, sep = "\t")
+  }
+
   ## run gene module analysis. 2 is highResponder and 0 is lowResponder
   if(markdown == F){
     qs.results <-  qusage(eset.nodup.final, labels, "2-0", geneSetDB)

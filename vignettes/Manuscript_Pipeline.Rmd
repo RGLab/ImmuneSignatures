@@ -65,6 +65,7 @@ yale.anno <- "original"
 sdy80.anno <- "original"
 sdy80.norm <- FALSE
 
+tst_dir <- "/home/ehenrich/R/Gen_Test"
 ```
 
 ```{r include=FALSE}
@@ -78,7 +79,12 @@ for(sdy in studies){
            rawdata_dir = rawdata_dir)
     makeHAI(sdy, output_dir = hai_dir)
     makeDemo(sdy, output_dir = ge_dir)
-  }
+}
+
+ge67_tst_from <- paste0(ge_dir,"/SDY67-batch2.GEMatrix.txt")
+ge67_tst_to <- paste0(tst_dir,"/SDY67-batch2.GEMatrix.txt")
+file.copy(ge67_tst_from, ge67_tst_to)
+
 ```
 
 ***
@@ -130,6 +136,10 @@ combined_hai <- combine_hai_data(hai_dir, output_dir = rds_dir)
 for(sdy in studies){
   make_rds(sdy, ge_dir, combined_hai, output_dir = rds_dir)
 }
+
+rds67_tst_from <- paste0(rds_dir,"/SDY67-batch2.rds")
+rds67_tst_to <- paste0(tst_dir,"/SDY67-batch2.rds")
+file.copy(rds67_tst_from, rds67_tst_to)
 ```
 
 ```{r include=FALSE}
