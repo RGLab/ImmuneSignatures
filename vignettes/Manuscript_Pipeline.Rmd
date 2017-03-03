@@ -62,7 +62,6 @@ rawdata_dir <- file.path(pp_dir,"rawdata")
 dir.create(path = rawdata_dir)
 
 yale.anno <- "original"
-sdy80.process <- FALSE
 sdy80.anno <- "original"
 sdy80.norm <- FALSE
 
@@ -71,19 +70,14 @@ sdy80.norm <- FALSE
 ```{r include=FALSE}
 # 1. Extract and pre-process data from ImmuneSpace, ImmPort, or GEO databases    
 for(sdy in studies){
-    if( !(sdy %in% c("SDY400","SDY80")) | (sdy == "SDY80" & sdy80.process == TRUE) ){
-        makeGE(sdy,
-               yale.anno = yale.anno,
-               sdy80.anno = sdy80.anno,
-               sdy80.norm = sdy80.norm,
-               output_dir = ge_dir,
-               rawdata_dir = rawdata_dir)
-        makeHAI(sdy, output_dir = hai_dir)
-        makeDemo(sdy, output_dir = ge_dir)
-    }else if(sdy == "SDY400"){
-      makeHAI(sdy, output_dir = hai_dir)
-      makeDemo(sdy, output_dir = ge_dir)
-    }
+    makeGE(sdy,
+           yale.anno = yale.anno,
+           sdy80.anno = sdy80.anno,
+           sdy80.norm = sdy80.norm,
+           output_dir = ge_dir,
+           rawdata_dir = rawdata_dir)
+    makeHAI(sdy, output_dir = hai_dir)
+    makeDemo(sdy, output_dir = ge_dir)
   }
 ```
 
@@ -92,7 +86,6 @@ for(sdy in studies){
 
 ### PARAMETERS:
 - **Yale Studies Gene Expression Annotation: ** `r yale.anno`
-- **Processing of SDY80/CHI-nih from IS rawdata: ** `r sdy80.process`
 - **SDY80/CHI-nih Gene Expression Annotation: ** `r sdy80.anno`
 - **SDY80/CHI-nih GE normalization via pipeleine: ** `r sdy80.norm`
 
@@ -133,9 +126,9 @@ dir.create(path = rds_dir)
 ```
 
 ```{r include=FALSE}
-combined_hai <- combine_hai_data(hai_dir, sdy80.process, output_dir = rds_dir)
+combined_hai <- combine_hai_data(hai_dir, output_dir = rds_dir)
 for(sdy in studies){
-  make_rds(sdy, ge_dir, sdy80.process, combined_hai, output_dir = rds_dir)
+  make_rds(sdy, ge_dir, combined_hai, output_dir = rds_dir)
 }
 ```
 
