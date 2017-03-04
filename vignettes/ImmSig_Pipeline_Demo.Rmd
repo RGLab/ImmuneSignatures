@@ -1,0 +1,171 @@
+---
+title: "HIPC ImmuneSignatures Project Meta Analysis Using Data from ImmuneSpace"
+authors: "HIPC ImmuneSignatures Project Collaborators"
+package developer: "Evan Henrich, Gottardo Lab @ Fred Hutchinson Cancer Research Center"
+contact: "ehenrich@fredhutch.org"
+date: "`r Sys.Date()`"
+output: rmarkdown::html_document
+---
+
+***
+## PACKAGE INFORMATION
+#### Created: January 2017
+#### Study Authors: HIPC ImmuneSignature Collaborators
+#### Package Developer: Evan Henrich (Gottardo Lab - FHCRC)
+#### Contact: ehenrich@fredhutch.org
+
+***
+
+## GENERAL NOTES:
+This markdown file outputs the results of the HIPC ImmuneSignatures Project using the original parameters 
+developed by the collaborators. Interested users may re-run the full pipeline with the same or other parameters
+using the 'hipc_full_pipeline()' method in the "ImmSigPkg" available on github via install_github("ehfhcrc/ImmSigPkg").
+
+```{r set-options, include=FALSE}
+library(ImmSig2)
+options(width = 999)
+knitr::opts_chunk$set(echo=FALSE, 
+               cache=FALSE, 
+               warning=FALSE, 
+               message=FALSE, 
+               tidy=TRUE,
+               fig.height=7, 
+               fig.width=7,
+               fig.align = "center")
+```
+
+```{r include=FALSE}
+# 1. Create expressionSet object using data from ImmuneSpace
+studies <- c("SDY212","SDY63","SDY404","SDY400","SDY67","SDY80")
+eset_list <- list()
+
+for(sdy in studies){
+  
+  # Get expressionSet object with normalized gene expression values.
+  # NOTE 1: SDY67 is normalized later with different process
+  # NOTE 2: SDY400 and SDY67 were not available, therefore preloaded
+  # as part of package
+  eset <- ""
+  con <- CreateConnection(sdy)
+  
+  if(!(sdy %in% c("SDY400","SDY67"))){
+    mats <- con$GeneExpressionMatrices()
+    eset <- con$getGEMatrix(mats$names, summary = T)
+  }else if(sdy == "SDY400"){
+    eset <- data("SDY400_min_eset")
+  }else if(sdy == "SDY67"){
+    eset <- data("SDY67_min_eset")
+    countTable <- exprs(eset)
+    condition <- colnames(e)
+    cds <-newCountDataSet(countTable, condition)
+    cds <- estimateSizeFactors(cds)
+    cdsBlind <- estimateDispersions(cds, method="blind" )
+    vsd <- varianceStabilizingTransformation(cdsBlind)
+    exprs(eset) <- exprs(vsd)
+    assayData(eset)[["counts"]] <- countTable
+  }
+  
+  # Demo data
+  raw_demo <- con$getDataset("demographics")
+  adj_demo <- adjust_demo(sdy, raw_demo)
+  adj_demo$Study <- sdy
+  adj_demo$Condition <- "d0"
+  if(sdy != "SDY80"){
+    adj_demo$Cohort <- sdy
+  }else{
+    adj_demo$Cohort <- "CHI-nih"
+  }
+  
+  # Get and adjust HAI rawdata
+  # NOTE: SDY80 raw data in ImmuneSpace differs, therefore
+  # preloading file as part of package
+  if(sdy != "SDY80"){
+    raw_hai <- con$getDataset("hai")
+  }else{
+    raw_hai <- data("SDY80_rawtiterdata_v2")
+  }
+  adj_hai <- adjust_hai(sdy, raw_hai) # df with all three variations of hai returned
+  
+  # pulls out "d0" or similar descriptor and the subjects with expression data
+  full_sub_ids <- str_match(sampleNames(eset), "(((SUB)|(sub))_?[0-9]+)(\\.[0-9])?_(.*)") # modified for SDY212
+  expr_subids <- m[, 2L]
+  eset$Condition <- factor(full_sub_ids[, 7L])
+  
+  # Combine demo and hai into pData and put into eset
+  demo_hai <- merge(adj_hai, adj_demo, by.x = "subject", by.y = "subjectID")
+  demo_hai <- demo_hai[match(expr_subids, demo_hai$subjectID), ]
+  names(demo_hai) <- toupper(names(demo_hai))
+  rownames(demo_hai) <- sampleNames(eset)
+  pData(eset) <- droplevels(demo_hai)
+  
+  # Add metadata
+  varMetadata(phenoData(eset))$HAI <- isHAI <- grepl("_max", varLabels(eset))
+  HAI_type <- rep('', ncol(pData(eset)))
+  HAI_type[isHAI] <- ifelse(sapply(pData(eset)[isHAI], is.factor), "class", 'continuous')
+  varMetadata(phenoData(eset))$HAI_type <- factor(HAI_type)
+  storageMode(assayData(eset)) <- "lockedEnvironment" 
+  
+  eset_list[[sdy]] <- eset
+}
+```
+
+```{r include=FALSE}
+# Setup for Meta Analyis script
+data("geneSetDB")
+FDR.cutoff <- 0.5
+pvalue.cutoff <- 0.01
+endPoint <- "fc_res_max_d30"
+```
+
+## META-ANALYSIS 
+
+### YOUNG COHORT RESULTS
+```{r include=TRUE, results="markup"}
+yng_res_dfs <- meta_analysis(geneSetDB = geneSetDB,
+                  eset_list = eset_list,
+                  cohort = "young",
+                  FDR.cutoff = FDR.cutoff,
+                  pvalue.cutoff = pvalue.cutoff,
+                  endPoint = endPoint)
+```
+
+#### Discovery Group Significant Pathways Data  
+``` {r}
+DT::datatable(yng_res_dfs$dsc)
+```
+
+#### Validation Study Significant Pathways Data  
+``` {r}
+DT::datatable(yng_res_dfs$val)
+```
+
+***
+
+### OLD COHORT RESULTS
+
+```{r include=TRUE, results="markup"}
+old_res_dfs <- meta_analysis(geneSetDB = geneSetDB,
+                  eset_list = eset_list,
+                  cohort = "old",
+                  FDR.cutoff = FDR.cutoff,
+                  pvalue.cutoff = pvalue.cutoff,
+                  endPoint = endPoint)
+```
+
+#### Discovery Group Significant Pathways Data  
+``` {r}
+DT::datatable(old_res_dfs$dsc)
+```
+
+#### Validation Study Significant Pathways Data  
+``` {r}
+DT::datatable(old_res_dfs$val)
+```
+
+***
+
+### PARAMETERS:
+- **FDR.cutoff: ** `r FDR.cutoff`
+- **pvalue.cutoff: ** `r pvalue.cutoff`
+- **endPoint: ** `r endPoint`
+- **geneSetDB: ** BTM_for_GSEA_20131008.gmt
