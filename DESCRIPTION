@@ -1,11 +1,11 @@
-Package: ImmSigPkg
+Package: ImmSig2
 Type: Package
-Title: Run HIPC ImmuneSignatures Pipeline from ImmuneSpace data
+Title: Streamlined package to demonstrate HIPC ImmuneSigatures work using ImmuneSpace Data
 Version: 0.1.0
 Author: HIPC ImmuneSignatures collaborators
 Maintainer: Evan Henrich <ehenrich@fredhutch.org>
-Description: This package allows the user to run the full HIPC ImmuneSignatures
-    analysis pipeline
+Description: Package has limited function, for more functionality use "ImmSigPkg".  Install
+  via github with install_github("ehfhcrc/ImmSigPkg")
 License: What license is it under?
 Encoding: UTF-8
 LazyData: true

@@ -17,12 +17,20 @@ output: rmarkdown::html_document
 ***
 
 ## GENERAL NOTES:
-This markdown file outputs the results of the HIPC ImmuneSignatures Project using the original parameters 
-developed by the collaborators. Interested users may re-run the full pipeline with the same or other parameters
-using the 'hipc_full_pipeline()' method in the "ImmSigPkg" available on github via install_github("ehfhcrc/ImmSigPkg").
+This markdown file outputs the results of the HIPC ImmuneSignatures Project using the original parameters and
+streamlined code from the published manuscript but run with data coming direclty from ImmuneSpace. Interested 
+users may re-run the full pipeline with the same or other parameters using the 'hipc_full_pipeline()' method 
+in the "ImmSigPkg" available on github via install_github("ehfhcrc/ImmSigPkg").  The ImmSigPkg also outputs
+intermediate files similar to the original study, allowing for easier comparison through the pipeline.
 
 ```{r set-options, include=FALSE}
-library(ImmSig2)
+library(ImmSig2) # to load data and helper functions
+library(Biobase) # must install on Rserve
+library(stringr)
+library(hash)
+library(dplyr)
+library(qusage) # must install on Rserve
+
 options(width = 999)
 knitr::opts_chunk$set(echo=FALSE, 
                cache=FALSE, 
@@ -39,71 +47,69 @@ knitr::opts_chunk$set(echo=FALSE,
 studies <- c("SDY212","SDY63","SDY404","SDY400","SDY67","SDY80")
 eset_list <- list()
 
+get("biosmpl2sub")
+
 for(sdy in studies){
   
-  # Get expressionSet object with normalized gene expression values.
-  # NOTE 1: SDY67 is normalized later with different process
-  # NOTE 2: SDY400 and SDY67 were not available, therefore preloaded
-  # as part of package
-  eset <- ""
   con <- CreateConnection(sdy)
   
+  # Get expressionSet object with normalized gene expression values.
+  # NOTE 1: SDY67 was normalized using DEseq method. See ImmSigPkg code for details.
+  # NOTE 2: SDY400 and SDY67 were not available, therefore using preloaded.
+  # NOTE 3: SDY212 "BS694717" with unexplained dup biosamples; both are removed.
   if(!(sdy %in% c("SDY400","SDY67"))){
     mats <- con$GeneExpressionMatrices()
-    eset <- con$getGEMatrix(mats$names, summary = T)
+    eset <- con$getGEMatrix(mats$name, summary = T)
+    if(sdy == "SDY212"){ 
+      eset <- eset[ , -which(sampleNames(eset) == "BS694717") ]
+    }
   }else if(sdy == "SDY400"){
-    eset <- data("SDY400_min_eset")
+    eset <- get("SDY400_min_eset")
   }else if(sdy == "SDY67"){
-    eset <- data("SDY67_min_eset")
-    countTable <- exprs(eset)
-    condition <- colnames(e)
-    cds <-newCountDataSet(countTable, condition)
-    cds <- estimateSizeFactors(cds)
-    cdsBlind <- estimateDispersions(cds, method="blind" )
-    vsd <- varianceStabilizingTransformation(cdsBlind)
-    exprs(eset) <- exprs(vsd)
-    assayData(eset)[["counts"]] <- countTable
+    eset <- get("SDY67_min_eset")
   }
   
-  # Demo data
-  raw_demo <- con$getDataset("demographics")
-  adj_demo <- adjust_demo(sdy, raw_demo)
-  adj_demo$Study <- sdy
-  adj_demo$Condition <- "d0"
-  if(sdy != "SDY80"){
-    adj_demo$Cohort <- sdy
-  }else{
-    adj_demo$Cohort <- "CHI-nih"
+  # Map sampleNames(eset) to ImmuneSpace subject IDs and remove unmapped
+  if(!(sdy %in% c("SDY400","SDY67"))){
+    sampleNames(eset) <- unname(hashmap(biosmpl2sub$Biosample, biosmpl2sub$GE_ID, sampleNames(eset)))
   }
   
-  # Get and adjust HAI rawdata
-  # NOTE: SDY80 raw data in ImmuneSpace differs, therefore
-  # preloading file as part of package
+  # Parse Subject IDs and Limit expression data to baseline (d0) only
+  factored_ids <- str_match(sampleNames(eset), "(((SUB)|(sub))_?[0-9]+)(\\.[0-9])?_(.*)") 
+  eset$Condition <- factor(factored_ids[, 7L])
+  eset <- eset[,grep("^((d0)|(dneg))", eset$Condition)] 
+  
+  # Get baseline eset Subjects
+  factored_ids <- str_match(sampleNames(eset), "(((SUB)|(sub))_?[0-9]+)(\\.[0-9])?_(.*)") 
+  eset_subs <- factored_ids[, 2L]
+  
+  # Get raw HAI data from Immunespace where feasible.
+  # NOTE: SDY80 raw data in ImmuneSpace differs, therefore using preloaded.
   if(sdy != "SDY80"){
     raw_hai <- con$getDataset("hai")
   }else{
     raw_hai <- data("SDY80_rawtiterdata_v2")
   }
-  adj_hai <- adjust_hai(sdy, raw_hai) # df with all three variations of hai returned
   
-  # pulls out "d0" or similar descriptor and the subjects with expression data
-  full_sub_ids <- str_match(sampleNames(eset), "(((SUB)|(sub))_?[0-9]+)(\\.[0-9])?_(.*)") # modified for SDY212
-  expr_subids <- m[, 2L]
-  eset$Condition <- factor(full_sub_ids[, 7L])
+  # Adjust HAI data according to methodology by Yuri Kotliarov from manuscript / orig. code
+  adj_hai <- adjust_hai(sdy, raw_hai) 
   
-  # Combine demo and hai into pData and put into eset
-  demo_hai <- merge(adj_hai, adj_demo, by.x = "subject", by.y = "subjectID")
-  demo_hai <- demo_hai[match(expr_subids, demo_hai$subjectID), ]
-  names(demo_hai) <- toupper(names(demo_hai))
-  rownames(demo_hai) <- sampleNames(eset)
-  pData(eset) <- droplevels(demo_hai)
+  # Age needed for SDY80 to remove subjects over 36 years old
+  if(sdy == "SDY80"){
+    demo <- con$getDataset("demographics")
+    adj_hai$Age <- sapply(adj_hai$subject, FUN = function(x){
+      trg <- demo[ which(demo$subjectID == x)]
+      return(trg$Age)
+    })
+    eset <- eset[, which(adj_hai$Age < 36)]
+  }
   
-  # Add metadata
-  varMetadata(phenoData(eset))$HAI <- isHAI <- grepl("_max", varLabels(eset))
-  HAI_type <- rep('', ncol(pData(eset)))
-  HAI_type[isHAI] <- ifelse(sapply(pData(eset)[isHAI], is.factor), "class", 'continuous')
-  varMetadata(phenoData(eset))$HAI_type <- factor(HAI_type)
-  storageMode(assayData(eset)) <- "lockedEnvironment" 
+  # Ensure HAI and eset contain same subjects in same order, then push to pData
+  eset <- eset[ , which(eset_subs %in% adj_hai$subject) ]
+  adj_hai <- adj_hai[ which(adj_hai$subject %in% eset_subs), ]
+  adj_hai <- adj_hai[ order(match(adj_hai$subject, eset_subs)), ]
+  rownames(adj_hai) <- sampleNames(eset)
+  pData(eset) <- droplevels(adj_hai)
   
   eset_list[[sdy]] <- eset
 }
@@ -169,3 +175,17 @@ DT::datatable(old_res_dfs$val)
 - **pvalue.cutoff: ** `r pvalue.cutoff`
 - **endPoint: ** `r endPoint`
 - **geneSetDB: ** BTM_for_GSEA_20131008.gmt
+
+
+```{r}
+# DEPRECATED ... not needed? 
+# # Add metadata
+#   varMetadata(phenoData(eset))$HAI <- isHAI <- grepl("_max", varLabels(eset))
+#   HAI_type <- rep('', ncol(pData(eset)))
+#   HAI_type[isHAI] <- ifelse(sapply(pData(eset)[isHAI], is.factor), "class", 'continuous')
+#   varMetadata(phenoData(eset))$HAI_type <- factor(HAI_type)
+#   storageMode(assayData(eset)) <- "lockedEnvironment" 
+# raw_demo <- con$getDataset("demographics")
+#   adj_demo <- adjust_demo(sdy, raw_demo)
+  # demo_hai <- merge(adj_hai, adj_demo, by.x = "subject", by.y = "subjectID")
+```

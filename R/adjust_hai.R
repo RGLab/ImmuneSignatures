@@ -257,8 +257,6 @@ adjust_hai <- function(sdy, rawdata){
     }
   }
 
-
-
   # calc fold change
   for(i in 1:length(strains)){
     titer_data[, fc_names[[i]] ] <- titer_data[ , d28_names[[i]] ] / titer_data[ , d0_names[[i]] ]
@@ -333,38 +331,48 @@ adjust_hai <- function(sdy, rawdata){
 
   # setup meta-list for possible titer tables based on cohorts: young, old, and combined are possible
   submxs <- list()
-  submxs[["combined"]] <- titer_data
 
   # Generate subset matrices based on age and perform statistical work on each separately
   # SDY212 and the other studies use different nomenclature for categorization, therefore
   # need to check against lists
   yng_ls <- c("Cohort_1", "Young adults 21-30 years old", "Young")
   old_ls <- c("Cohort_2", "Cohort2", "Older adults >= 65 years old", "healthy adults, 50-74 yo", "Old")
+
+  titer_data$Age.class <- sapply(titer_data$cohort, FUN = function(x){
+    if(x %in% yng_ls){
+      return("young")
+    }else if(x %in% old_ls){
+      return("old")
+    }else{
+      return(NA)
+    }
+  })
+
+  # SDY67-old is only subjects over 60 yrs old.  These subject IDs are from the demographic file.
+  if(sdy == "SDY67"){
+    subs_keep <-  c("SUB113453", "SUB113458", "SUB113460", "SUB113461", "SUB113463", "SUB113464",
+                    "SUB113466", "SUB113467", "SUB113468", "SUB113470", "SUB113471", "SUB113486",
+                    "SUB113492", "SUB113493", "SUB113494", "SUB113495", "SUB113496", "SUB113497",
+                    "SUB113499", "SUB113500", "SUB113501", "SUB113502", "SUB113503", "SUB113504",
+                    "SUB113505", "SUB113508", "SUB113509", "SUB113510", "SUB113512", "SUB113516",
+                    "SUB113517", "SUB113525", "SUB113526", "SUB113527", "SUB113528", "SUB113529",
+                    "SUB113532", "SUB113533", "SUB113535", "SUB113536", "SUB113540", "SUB113541",
+                    "SUB113543", "SUB113545", "SUB113546", "SUB113547", "SUB113549", "SUB113553",
+                    "SUB113555", "SUB113556", "SUB113564", "SUB113571", "SUB113572", "SUB113574",
+                    "SUB113575", "SUB113577", "SUB113578", "SUB113580", "SUB113586", "SUB113593",
+                    "SUB113594", "SUB113595", "SUB113596", "SUB113599", "SUB113602", "SUB113603",
+                    "SUB113604", "SUB113605", "SUB113606")
+    subs_keep <- sapply(subs_keep, FUN = function(x){x <- paste0(x,".67")})
+    titer_data <- titer_data[(titer_data$subject %in% subs_keep),]
+  }
+
+  submxs[["combined"]] <- titer_data
+
   for(coh in cohorts){
     if(coh %in% yng_ls){
       submxs[["young"]]  <- titer_data[which(titer_data$cohort == coh),]
     }else if(coh %in% old_ls){
-      if(sdy != "SDY67"){
-        submxs[["old"]]  <- titer_data[which(titer_data$cohort == coh),]
-      }else{
-        # SDY67-old is only subjects over 60 yrs old.  These subject IDs are from the demographic file.
-        subs_keep <-  c("SUB113453", "SUB113458", "SUB113460", "SUB113461", "SUB113463", "SUB113464",
-                        "SUB113466", "SUB113467", "SUB113468", "SUB113470", "SUB113471", "SUB113486",
-                        "SUB113492", "SUB113493", "SUB113494", "SUB113495", "SUB113496", "SUB113497",
-                        "SUB113499", "SUB113500", "SUB113501", "SUB113502", "SUB113503", "SUB113504",
-                        "SUB113505", "SUB113508", "SUB113509", "SUB113510", "SUB113512", "SUB113516",
-                        "SUB113517", "SUB113525", "SUB113526", "SUB113527", "SUB113528", "SUB113529",
-                        "SUB113532", "SUB113533", "SUB113535", "SUB113536", "SUB113540", "SUB113541",
-                        "SUB113543", "SUB113545", "SUB113546", "SUB113547", "SUB113549", "SUB113553",
-                        "SUB113555", "SUB113556", "SUB113564", "SUB113571", "SUB113572", "SUB113574",
-                        "SUB113575", "SUB113577", "SUB113578", "SUB113580", "SUB113586", "SUB113593",
-                        "SUB113594", "SUB113595", "SUB113596", "SUB113599", "SUB113602", "SUB113603",
-                        "SUB113604", "SUB113605", "SUB113606")
-        subs_keep <- sapply(subs_keep, FUN = function(x){
-          x <- paste0(x,".67")
-        })
-        submxs[["old"]] <- titer_data[(titer_data$subject %in% subs_keep),]
-      }
+      submxs[["old"]]  <- titer_data[which(titer_data$cohort == coh),]
     }
   }
 
@@ -457,8 +465,13 @@ adjust_hai <- function(sdy, rawdata){
   }
 
   # combine all three into one df (should just be subject and keep names columns here)
-  merged_df <- merge(res_list$combined, res_list$young, by = "subject", all.y = T, all.x = T)
-  merged_df <- merge(merged_df, res_list$old, by = "subject", all.y = T, all.x = T)
+  merged_df <- merge(res_list$combined, res_list$old, by = "subject", all.y = T, all.x = T)
+  if(sdy != "SDY67"){
+    merged_df <- merge(merged_df, res_list$young, by = "subject", all.y = T, all.x = T)
+    merged_df <- drop_cols(merged_df, c("young_Age.class", "old_Age.class"))
+  }else{
+    merged_df <- drop_cols(merged_df, c("old_Age.class"))
+  }
 
   return(merged_df)
 }
