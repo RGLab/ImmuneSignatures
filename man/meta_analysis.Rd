@@ -4,11 +4,10 @@
 \alias{meta_analysis}
 \title{Function to perform meta analysis for HIPC ImmuneSignatures Project}
 \usage{
-meta_analysis(geneSetDB, eset_list, cohort, FDR.cutoff = 0.5,
-  pvalue.cutoff = 0.01, endPoint = "fc_res_max_d30")
+meta_analysis(eset_list, cohort)
 }
 \arguments{
-\item{geneSetDB}{table defining gene sets}
+\item{eset_list}{list of expressionSet objects holding GE, HAI data}
 
 \item{cohort}{Study cohort, young or old}
 

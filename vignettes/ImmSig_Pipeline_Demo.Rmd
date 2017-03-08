@@ -47,61 +47,52 @@ knitr::opts_chunk$set(echo=FALSE,
 studies <- c("SDY212","SDY63","SDY404","SDY400","SDY67","SDY80")
 eset_list <- list()
 
-get("biosmpl2sub")
-
 for(sdy in studies){
-  
+  start <- Sys.time()
+  message(paste0("Now assembling study - ", sdy))
   con <- CreateConnection(sdy)
   
-  # Get expressionSet object with normalized gene expression values.
+  # Get expressionSet object with normalized gene expression values and map SampleNames.
+  # Mapping done with "biosmpl2sub" object generated from ImmuneSpace Schema Browser.
   # NOTE 1: SDY67 was normalized using DEseq method. See ImmSigPkg code for details.
   # NOTE 2: SDY400 and SDY67 were not available, therefore using preloaded.
-  # NOTE 3: SDY212 "BS694717" with unexplained dup biosamples; both are removed.
+  # NOTE 3: SDY212 with unexplained dup biosamples; both "BS694717" are removed.
   if(!(sdy %in% c("SDY400","SDY67"))){
     mats <- con$GeneExpressionMatrices()
     eset <- con$getGEMatrix(mats$name, summary = T)
-    if(sdy == "SDY212"){ 
-      eset <- eset[ , -which(sampleNames(eset) == "BS694717") ]
-    }
-  }else if(sdy == "SDY400"){
-    eset <- get("SDY400_min_eset")
-  }else if(sdy == "SDY67"){
-    eset <- get("SDY67_min_eset")
-  }
-  
-  # Map sampleNames(eset) to ImmuneSpace subject IDs and remove unmapped
-  if(!(sdy %in% c("SDY400","SDY67"))){
+    if(sdy == "SDY212"){ eset <- eset[ , -which(sampleNames(eset) == "BS694717") ] }
     sampleNames(eset) <- unname(hashmap(biosmpl2sub$Biosample, biosmpl2sub$GE_ID, sampleNames(eset)))
-  }
-  
+  }else{
+    eset <- get(paste0(sdy, "_min_eset"))
+  } 
+
   # Parse Subject IDs and Limit expression data to baseline (d0) only
   factored_ids <- str_match(sampleNames(eset), "(((SUB)|(sub))_?[0-9]+)(\\.[0-9])?_(.*)") 
   eset$Condition <- factor(factored_ids[, 7L])
-  eset <- eset[,grep("^((d0)|(dneg))", eset$Condition)] 
+  eset <- eset[ , grep("^d0", eset$Condition) ] 
   
   # Get baseline eset Subjects
   factored_ids <- str_match(sampleNames(eset), "(((SUB)|(sub))_?[0-9]+)(\\.[0-9])?_(.*)") 
   eset_subs <- factored_ids[, 2L]
   
-  # Get raw HAI data from Immunespace where feasible.
+  # Get raw HAI data from Immunespace where feasible and adjust according to Yuri Kotliarov code.
   # NOTE: SDY80 raw data in ImmuneSpace differs, therefore using preloaded.
   if(sdy != "SDY80"){
     raw_hai <- con$getDataset("hai")
   }else{
-    raw_hai <- data("SDY80_rawtiterdata_v2")
+    raw_hai <- SDY80_rawtiterdata_v2
   }
   
-  # Adjust HAI data according to methodology by Yuri Kotliarov from manuscript / orig. code
   adj_hai <- adjust_hai(sdy, raw_hai) 
   
   # Age needed for SDY80 to remove subjects over 36 years old
   if(sdy == "SDY80"){
     demo <- con$getDataset("demographics")
     adj_hai$Age <- sapply(adj_hai$subject, FUN = function(x){
-      trg <- demo[ which(demo$subjectID == x)]
-      return(trg$Age)
+      trg <- demo[ which(demo$participant_id == paste0(x, ".80"))]
+      return(trg$age_reported)
     })
-    eset <- eset[, which(adj_hai$Age < 36)]
+    adj_hai <- adj_hai[ which(adj_hai$Age < 36), ]
   }
   
   # Ensure HAI and eset contain same subjects in same order, then push to pData
@@ -112,37 +103,27 @@ for(sdy in studies){
   pData(eset) <- droplevels(adj_hai)
   
   eset_list[[sdy]] <- eset
+  finish <- Sys.time()
+  message(paste0("Runtime: ", (finish - start)))
 }
-```
-
-```{r include=FALSE}
-# Setup for Meta Analyis script
-data("geneSetDB")
-FDR.cutoff <- 0.5
-pvalue.cutoff <- 0.01
-endPoint <- "fc_res_max_d30"
 ```
 
 ## META-ANALYSIS 
 
 ### YOUNG COHORT RESULTS
 ```{r include=TRUE, results="markup"}
-yng_res_dfs <- meta_analysis(geneSetDB = geneSetDB,
-                  eset_list = eset_list,
-                  cohort = "young",
-                  FDR.cutoff = FDR.cutoff,
-                  pvalue.cutoff = pvalue.cutoff,
-                  endPoint = endPoint)
+yng_res <- meta_analysis(eset_list = eset_list,
+                         cohort = "young")
 ```
 
 #### Discovery Group Significant Pathways Data  
-``` {r}
-DT::datatable(yng_res_dfs$dsc)
+``` {r include=TRUE}
+DT::datatable(yng_res$dsc)
 ```
 
 #### Validation Study Significant Pathways Data  
-``` {r}
-DT::datatable(yng_res_dfs$val)
+``` {r include=TRUE}
+DT::datatable(yng_res$val)
 ```
 
 ***
@@ -150,42 +131,24 @@ DT::datatable(yng_res_dfs$val)
 ### OLD COHORT RESULTS
 
 ```{r include=TRUE, results="markup"}
-old_res_dfs <- meta_analysis(geneSetDB = geneSetDB,
-                  eset_list = eset_list,
-                  cohort = "old",
-                  FDR.cutoff = FDR.cutoff,
-                  pvalue.cutoff = pvalue.cutoff,
-                  endPoint = endPoint)
+old_res <- meta_analysis(eset_list = eset_list,
+                         cohort = "old")
 ```
 
 #### Discovery Group Significant Pathways Data  
 ``` {r}
-DT::datatable(old_res_dfs$dsc)
+DT::datatable(old_res$dsc)
 ```
 
 #### Validation Study Significant Pathways Data  
 ``` {r}
-DT::datatable(old_res_dfs$val)
+DT::datatable(old_res$val)
 ```
 
 ***
 
 ### PARAMETERS:
-- **FDR.cutoff: ** `r FDR.cutoff`
-- **pvalue.cutoff: ** `r pvalue.cutoff`
-- **endPoint: ** `r endPoint`
+- **FDR.cutoff: ** 0.5
+- **pvalue.cutoff: ** 0.01
+- **endPoint: ** fc_res_max_d30
 - **geneSetDB: ** BTM_for_GSEA_20131008.gmt
-
-
-```{r}
-# DEPRECATED ... not needed? 
-# # Add metadata
-#   varMetadata(phenoData(eset))$HAI <- isHAI <- grepl("_max", varLabels(eset))
-#   HAI_type <- rep('', ncol(pData(eset)))
-#   HAI_type[isHAI] <- ifelse(sapply(pData(eset)[isHAI], is.factor), "class", 'continuous')
-#   varMetadata(phenoData(eset))$HAI_type <- factor(HAI_type)
-#   storageMode(assayData(eset)) <- "lockedEnvironment" 
-# raw_demo <- con$getDataset("demographics")
-#   adj_demo <- adjust_demo(sdy, raw_demo)
-  # demo_hai <- merge(adj_hai, adj_demo, by.x = "subject", by.y = "subjectID")
-```

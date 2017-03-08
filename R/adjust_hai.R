@@ -12,21 +12,14 @@
 # portal at www.immunespace.org instead of data shared among the collaborating labs via a google
 # drive and also to handle all the studies used in the meta-analysis in an automated format.
 
-#***************TESTING ONLY*********************************
-#------Dependencies-------------
-# library(tidyverse)
-# library(hash)
-# library(ImmuneSpaceR)
-# library(data.table)
-# library(stringr)
 
-#*************************************************************
 #------Helper Functions---------
-# Calc median and SD, return as part of list of lists
+
 nm_builder <- function(prefix, strains){
   tmp <- unlist(lapply(strains, FUN = function(strain){ paste0(prefix, strain)}))
 }
 
+# Calc median and SD, return as part of list of lists
 med_sd_calc <- function(prefix, strains, glob_vals, titer_data){
   suf <- c("med","sd")
   for(virus in strains){
@@ -43,10 +36,12 @@ med_sd_calc <- function(prefix, strains, glob_vals, titer_data){
   return(glob_vals)
 }
 
+# to mimic matlab median(x,1) to bypass NA and infinite vals
 robust_med <- function(vec){
   return(median(vec[!is.na(vec) & !is.infinite(vec)]))
 }
 
+# to mimic matlab median absolute deviation func - mad(x,1)
 r_mad <- function(vec){
   robmed <- robust_med(vec)
   mad <- median(abs(vec - robmed))
@@ -91,7 +86,7 @@ discretize <- function(df, input_col, low_perc, sdy, name){
   if(sdy == "SDY67" && name == "combined"){
     xd <- sapply(df[[input_col]], FUN = function(x){
       if(is.na(x)){
-        return(NA)
+        return(NaN)
       }else if(round(x, digits = 7) < round(xq[[1]], digits = 7)){
         return(0)
       }else if(round(x, digits = 7) >= round(xq[[2]], digits = 7)){
@@ -103,7 +98,7 @@ discretize <- function(df, input_col, low_perc, sdy, name){
   }else if(sdy == "SDY404" && name == "young"){
     xd <- sapply(df[[input_col]], FUN = function(x){
       if(is.na(x)){
-        return(NA)
+        return(NaN)
       }else if(round(x, digits = 7) < round(xq[[1]], digits = 7)){
         return(0)
       }else if(round(x, digits = 7) > round(xq[[2]], digits = 7)){
@@ -115,7 +110,7 @@ discretize <- function(df, input_col, low_perc, sdy, name){
   }else{
     xd <- sapply(df[[input_col]], FUN = function(x){
       if(is.na(x)){
-        return(NA)
+        return(NaN)
       }else if(round(x, digits = 7) <= round(xq[[1]], digits = 7)){
         return(0)
       }else if(round(x, digits = 7) >= round(xq[[2]], digits = 7)){
@@ -421,6 +416,7 @@ adjust_hai <- function(sdy, rawdata){
         ungroup()
 
       df$fc_res_max <- ifelse(df$fc_res_max %in% c(Inf, NA), NaN, df$fc_res_max)
+
     }else{
       df = df %>%
         group_by(bin) %>%
