@@ -67,11 +67,12 @@ run_qusage <- function(raw_eset, cohort, sdy, endPoint, gene_set){
 #' @param pvalue.cutoff cutoff for p-values in selecting significant gene sets
 #' @param endPoint HAI table column used for categorizing response
 #' @export
+
 meta_analysis <- function(eset_list, cohort){
 
   # original manuscript params
   FDR.cutoff <- 0.5
-  pvalue.cutoff <- 0.1
+  pvalue.cutoff <- 0.01
   endPoint <- "fc_res_max_d30"
 
   result_dfs <- list() # holds output tables for use with markdown
