@@ -130,12 +130,12 @@ meta_analysis <- function(eset_list, cohort){
 
   result_dfs$dsc <- as.data.frame(out_matrix)
 
-  # for(i in index_sig){
-  #   plot(combinePDFsResult, path.index = i)
-  #   legend("topleft", legend=c(discoverySDY,"metaAnalysis"),
-  #          lty=1, col=c("#E41A1C","#377EB8","#4DAF4A","#984EA3","black"))
-  #   text(0.2, 1, paste("P value =", format(combined.p[i], digits=2),sep=""))
-  # }
+  for(i in index_sig){
+    plot(combinePDFsResult, path.index = i)
+    legend("topleft", legend=c(discoverySDY,"metaAnalysis"),
+           lty=1, col=c("#E41A1C","#377EB8","#4DAF4A","#984EA3","black"))
+    text(0.2, 1, paste("P value =", format(combined.p[i], digits=2),sep=""))
+  }
 
 
 
@@ -158,23 +158,23 @@ meta_analysis <- function(eset_list, cohort){
 
   result_dfs$val <- as.data.frame(out_matrix)
 
-  # # plot graphs
-  # for(i in index_sig){
-  #   plot(qs.results,
-  #        path.index = i,
-  #        col = "black",
-  #        xlim = c(-1,1),
-  #        ylim = c(0,10),
-  #        xlab = "Gene Module Activity",
-  #        main = names(geneSetDB)[i]
-  #   )
-  #   text(0.2,
-  #        1,
-  #        paste("p value =",
-  #              round(pdf.pVal(qs.results)[i], digits = 3),
-  #              sep = " "))
-  #   abline(v = 0, lty = 2)
-  # }
+  # plot graphs
+  for(i in index_sig){
+    plot(qs.results,
+         path.index = i,
+         col = "black",
+         xlim = c(-1,1),
+         ylim = c(0,10),
+         xlab = "Gene Module Activity",
+         main = names(geneSetDB)[i]
+    )
+    text(0.2,
+         1,
+         paste("p value =",
+               round(pdf.pVal(qs.results)[i], digits = 3),
+               sep = " "))
+    abline(v = 0, lty = 2)
+  }
 
   return(result_dfs)
 }
