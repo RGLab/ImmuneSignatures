@@ -25,6 +25,7 @@ intermediate files similar to the original study, allowing for easier comparison
 
 ```{r set-options, include=FALSE}
 library(ImmSig2) # to load data and helper functions
+library(Rlabkey)
 library(Biobase) # must install on Rserve
 library(stringr)
 library(hash)
@@ -45,6 +46,7 @@ knitr::opts_chunk$set(echo=FALSE,
 ```{r include=FALSE}
 # 1. Create expressionSet object using data from ImmuneSpace
 studies <- c("SDY212","SDY63","SDY404","SDY400","SDY67","SDY80")
+labkey.setDefaults(baseUrl="https://test.immunespace.org/")
 eset_list <- list()
 
 for(sdy in studies){
@@ -52,14 +54,24 @@ for(sdy in studies){
   message(paste0("Now assembling study - ", sdy))
   con <- CreateConnection(sdy)
   
-  # Get expressionSet object with normalized gene expression values and map SampleNames.
+  # Get expressionSet object with normalized gene expression values, use highest expression
+  # probe for each gene_symbol and remove others. Finally map SampleNames.
   # Mapping done with "biosmpl2sub" object generated from ImmuneSpace Schema Browser.
   # NOTE 1: SDY67 was normalized using DEseq method. See ImmSigPkg code for details.
   # NOTE 2: SDY400 and SDY67 were not available, therefore using preloaded.
   # NOTE 3: SDY212 with unexplained dup biosamples; both "BS694717" are removed.
   if(!(sdy %in% c("SDY400","SDY67"))){
     mats <- con$GeneExpressionMatrices()
-    eset <- con$getGEMatrix(mats$name, summary = T)
+    eset <- con$getGEMatrix(mats$name) 
+    tmp_fData <- fData(eset)
+    tmp_pData <- pData(eset)
+    adj_em <- adjust_GE(eset, tmp_fData$gene_symbol)
+    new_fData <- data.frame(rownames(adj_em))
+    rownames(new_fData) <- rownames(adj_em)
+    colnames(new_fData) <- c("gene_symbol")
+    eset <- ExpressionSet(assayData = as.matrix(adj_em),
+                          featureData = AnnotatedDataFrame(new_fData),
+                          phenoData = AnnotatedDataFrame(tmp_pData))
     if(sdy == "SDY212"){ eset <- eset[ , -which(sampleNames(eset) == "BS694717") ] }
     sampleNames(eset) <- unname(hashmap(biosmpl2sub$Biosample, biosmpl2sub$GE_ID, sampleNames(eset)))
   }else{
