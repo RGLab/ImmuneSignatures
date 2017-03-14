@@ -63,9 +63,6 @@ run_qusage <- function(raw_eset, cohort, sdy, endPoint, gene_set){
 #'
 #' @param eset_list list of expressionSet objects holding GE, HAI data
 #' @param cohort Study cohort, young or old
-#' @param FDR.cutoff Cutoff for q-values in selecting significant gene sets
-#' @param pvalue.cutoff cutoff for p-values in selecting significant gene sets
-#' @param endPoint HAI table column used for categorizing response
 #' @export
 
 meta_analysis <- function(eset_list, cohort){
@@ -81,11 +78,10 @@ meta_analysis <- function(eset_list, cohort){
   validation.sdy <- ifelse(cohort == 'young', "SDY80", "SDY67")
 
   # Parse Gene Module that is preloaded as part of package
-  gene_set <- strsplit(geneSetDB,"\t")            ##convert from vector of strings to a list
-  names(gene_set) <- sapply(gene_set,"[",1)      ##move the names column as the names of the list
-  links <- sapply(gene_set,"[",2)
-  gene_set <- lapply(gene_set, "[",-1:-2)        ##remove name and description columns
-  gene_set <- lapply(gene_set, function(x){x[which(x!="")]})      ##remove empty strings
+  gene_set <- strsplit(geneSetDB,"\t")            ## convert from vector of strings to a list
+  names(gene_set) <- sapply(gene_set,"[",1)      ## move the names column as the names of the list
+  gene_set <- lapply(gene_set, "[",-1:-2)        ## remove name and description columns
+  gene_set <- lapply(gene_set, function(x){ x[which(x!="")] })      ## remove empty strings
 
 
   #########################################################################################################

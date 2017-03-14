@@ -58,35 +58,32 @@ for(sdy in studies){
   # probe for each gene_symbol and remove others. Finally map SampleNames.
   # Mapping done with "biosmpl2sub" object generated from ImmuneSpace Schema Browser.
   # NOTE 1: SDY67 was normalized using DEseq method. See ImmSigPkg code for details.
-  # NOTE 2: SDY400 and SDY67 were not available, therefore using preloaded.
-  # NOTE 3: SDY212 with unexplained dup biosamples; both "BS694717" are removed.
-  if(!(sdy %in% c("SDY400","SDY67"))){
+  if(!(sdy %in% c("SDY400","SDY67"))){ # SDY67 and SDY400 not able to run through HIPCmatrix
     mats <- con$GeneExpressionMatrices()
-    eset <- con$getGEMatrix(mats$name) 
-    tmp_fData <- fData(eset)
+    eset <- con$getGEMatrix(mats$name, summary = F) 
     tmp_pData <- pData(eset)
-    adj_em <- adjust_GE(eset, tmp_fData$gene_symbol)
+    adj_em <- adjust_GE(eset)
     new_fData <- data.frame(rownames(adj_em))
     rownames(new_fData) <- rownames(adj_em)
     colnames(new_fData) <- c("gene_symbol")
     eset <- ExpressionSet(assayData = as.matrix(adj_em),
                           featureData = AnnotatedDataFrame(new_fData),
                           phenoData = AnnotatedDataFrame(tmp_pData))
-    if(sdy == "SDY212"){ eset <- eset[ , -which(sampleNames(eset) == "BS694717") ] }
+    if(sdy == "SDY212"){ eset <- eset[ , -which(sampleNames(eset) == "BS694717") ] } # Remove dup biosamples
     sampleNames(eset) <- unname(hashmap(biosmpl2sub$Biosample, biosmpl2sub$GE_ID, sampleNames(eset)))
   }else{
     eset <- get(paste0(sdy, "_min_eset"))
   } 
 
-  # Parse Subject IDs and Limit expression data to baseline (d0) only
-  factored_ids <- str_match(sampleNames(eset), "(((SUB)|(sub))_?[0-9]+)(\\.[0-9])?_(.*)") 
+  # # Parse Subject IDs and Limit expression data to baseline (d0) only
+  factored_ids <- str_match(sampleNames(eset), "(((SUB)|(sub))_?[0-9]+)(\\.[0-9])?_(.*)")
   eset$Condition <- factor(factored_ids[, 7L])
-  eset <- eset[ , grep("^d0", eset$Condition) ] 
-  
+  eset <- eset[ , grep("^d0", eset$Condition) ]
+
   # Get baseline eset Subjects
-  factored_ids <- str_match(sampleNames(eset), "(((SUB)|(sub))_?[0-9]+)(\\.[0-9])?_(.*)") 
+  factored_ids <- str_match(sampleNames(eset), "(((SUB)|(sub))_?[0-9]+)(\\.[0-9])?_(.*)")
   eset_subs <- factored_ids[, 2L]
-  
+
   # Get raw HAI data from Immunespace where feasible and adjust according to Yuri Kotliarov code.
   # NOTE: SDY80 raw data in ImmuneSpace differs, therefore using preloaded.
   if(sdy != "SDY80"){
@@ -94,9 +91,9 @@ for(sdy in studies){
   }else{
     raw_hai <- SDY80_rawtiterdata_v2
   }
-  
-  adj_hai <- adjust_hai(sdy, raw_hai) 
-  
+
+  adj_hai <- adjust_hai(sdy, raw_hai)
+
   # Age needed for SDY80 to remove subjects over 36 years old
   if(sdy == "SDY80"){
     demo <- con$getDataset("demographics")
@@ -106,7 +103,7 @@ for(sdy in studies){
     })
     adj_hai <- adj_hai[ which(adj_hai$Age < 36), ]
   }
-  
+
   # Ensure HAI and eset contain same subjects in same order, then push to pData
   eset <- eset[ , which(eset_subs %in% adj_hai$subject) ]
   adj_hai <- adj_hai[ which(adj_hai$subject %in% eset_subs), ]

@@ -10,12 +10,6 @@ meta_analysis(eset_list, cohort)
 \item{eset_list}{list of expressionSet objects holding GE, HAI data}
 
 \item{cohort}{Study cohort, young or old}
-
-\item{FDR.cutoff}{Cutoff for q-values in selecting significant gene sets}
-
-\item{pvalue.cutoff}{cutoff for p-values in selecting significant gene sets}
-
-\item{endPoint}{HAI table column used for categorizing response}
 }
 \description{
 Function to perform meta analysis for HIPC ImmuneSignatures Project
