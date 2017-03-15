@@ -26,11 +26,11 @@ intermediate files similar to the original study, allowing for easier comparison
 ```{r set-options, include=FALSE}
 library(ImmSig2) # to load data and helper functions
 library(Rlabkey)
-library(Biobase) # must install on Rserve
+library(Biobase) 
 library(stringr)
 library(hash)
 library(dplyr)
-library(qusage) # must install on Rserve
+library(qusage) 
 
 options(width = 999)
 knitr::opts_chunk$set(echo=FALSE, 
@@ -46,12 +46,10 @@ knitr::opts_chunk$set(echo=FALSE,
 ```{r include=FALSE}
 # 1. Create expressionSet object using data from ImmuneSpace
 studies <- c("SDY212","SDY63","SDY404","SDY400","SDY67","SDY80")
-labkey.setDefaults(baseUrl="https://test.immunespace.org/")
 eset_list <- list()
 
 for(sdy in studies){
-  start <- Sys.time()
-  message(paste0("Now assembling study - ", sdy))
+  labkey.url.path <- paste0("/Studies/", sdy, "/")
   con <- CreateConnection(sdy)
   
   # Get expressionSet object with normalized gene expression values, use highest expression
@@ -112,8 +110,6 @@ for(sdy in studies){
   pData(eset) <- droplevels(adj_hai)
   
   eset_list[[sdy]] <- eset
-  finish <- Sys.time()
-  message(paste0("Runtime: ", (finish - start)))
 }
 ```
 
