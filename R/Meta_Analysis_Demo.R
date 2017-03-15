@@ -150,27 +150,27 @@ meta_analysis <- function(eset_list, cohort){
   out_matrix <- cbind(pvalue, qvalue, pathway.activity.selected)
   rownames(out_matrix) <- names(geneSetDB)[index_sig] # equal to selected.pathways
 
-  cat(paste0("VALIDATION STUDY - SIGNFICANT PATHWAY FIGURES"))
+  # cat(paste0("VALIDATION STUDY - SIGNFICANT PATHWAY FIGURES"))
 
   result_dfs$val <- as.data.frame(out_matrix)
 
-  # plot graphs
-  for(i in index_sig){
-    plot(qs.results,
-         path.index = i,
-         col = "black",
-         xlim = c(-1,1),
-         ylim = c(0,10),
-         xlab = "Gene Module Activity",
-         main = names(geneSetDB)[i]
-    )
-    text(0.2,
-         1,
-         paste("p value =",
-               round(pdf.pVal(qs.results)[i], digits = 3),
-               sep = " "))
-    abline(v = 0, lty = 2)
-  }
+  # # Not effective part of Display, therefore commenting out for UI work -- plot graphs
+  # for(i in index_sig){
+  #   plot(qs.results,
+  #        path.index = i,
+  #        col = "black",
+  #        xlim = c(-1,1),
+  #        ylim = c(0,10),
+  #        xlab = "Gene Module Activity",
+  #        main = names(geneSetDB)[i]
+  #   )
+  #   text(0.2,
+  #        1,
+  #        paste("p value =",
+  #              round(pdf.pVal(qs.results)[i], digits = 3),
+  #              sep = " "))
+  #   abline(v = 0, lty = 2)
+  # }
 
   return(result_dfs)
 }
