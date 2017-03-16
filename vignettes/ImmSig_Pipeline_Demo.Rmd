@@ -56,7 +56,7 @@ for(sdy in studies){
   # probe for each gene_symbol and remove others. Finally map SampleNames.
   # Mapping done with "biosmpl2sub" object generated from ImmuneSpace Schema Browser.
   # NOTE 1: SDY67 was normalized using DEseq method. See ImmSigPkg code for details.
-  if(!(sdy %in% c("SDY400","SDY67"))){ # SDY67 and SDY400 not able to run through HIPCmatrix
+  if(sdy != "SDY67"){ # SDY67 and SDY400 not able to run through HIPCmatrix
     mats <- con$GeneExpressionMatrices()
     eset <- con$getGEMatrix(mats$name, summary = F) 
     tmp_pData <- pData(eset)
