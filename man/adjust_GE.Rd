@@ -16,4 +16,3 @@ adjust_GE(eset)
 Function to select only the probes with highest expression for each gene and
 remove the rest from the expression matrix
 }
-

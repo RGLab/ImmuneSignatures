@@ -16,4 +16,3 @@ hashmap(keys, values, vec_2_hash)
 \description{
 Function to generate HAI data table from ImmuneSpace Connection
 }
-

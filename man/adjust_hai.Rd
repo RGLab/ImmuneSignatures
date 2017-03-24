@@ -14,4 +14,3 @@ adjust_hai(sdy, rawdata)
 \description{
 Function to generate HAI data table from ImmuneSpace Connection
 }
-

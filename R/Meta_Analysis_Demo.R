@@ -148,7 +148,7 @@ meta_analysis <- function(eset_list, cohort){
   pathway.activity.selected <- qs.results$path.mean[index_sig]
 
   out_matrix <- cbind(pvalue, qvalue, pathway.activity.selected)
-  rownames(out_matrix) <- names(geneSetDB)[index_sig] # equal to selected.pathways
+  rownames(out_matrix) <- names(gene_set)[index_sig] # equal to selected.pathways
 
   # cat(paste0("VALIDATION STUDY - SIGNFICANT PATHWAY FIGURES"))
 

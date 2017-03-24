@@ -14,4 +14,3 @@ meta_analysis(eset_list, cohort)
 \description{
 Function to perform meta analysis for HIPC ImmuneSignatures Project
 }
-
