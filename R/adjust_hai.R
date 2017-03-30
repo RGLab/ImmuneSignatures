@@ -24,8 +24,8 @@ med_sd_calc <- function(prefix, strains, glob_vals, titer_data){
   suf <- c("med","sd")
   for(virus in strains){
     for(s in suf){
-      tar_list <- paste0(prefix,s)
-      tar_col <- paste0(prefix,virus)
+      tar_list <- paste0(prefix, s)
+      tar_col <- paste0(prefix, virus)
       if(s == "med"){
         glob_vals[[tar_list]][[virus]] <- median(titer_data[[tar_col]], na.rm = TRUE)
       }else{
@@ -38,14 +38,13 @@ med_sd_calc <- function(prefix, strains, glob_vals, titer_data){
 
 # to mimic matlab median(x,1) to bypass NA and infinite vals
 robust_med <- function(vec){
-  return(median(vec[!is.na(vec) & !is.infinite(vec)]))
+  median(vec[!is.na(vec) & !is.infinite(vec)])
 }
 
 # to mimic matlab median absolute deviation func - mad(x,1)
 r_mad <- function(vec){
   robmed <- robust_med(vec)
   mad <- median(abs(vec - robmed))
-  return(mad)
 }
 
 # Seems computationally costly, but enough edge cases merit checking for valid data before extraction
@@ -53,16 +52,11 @@ r_mad <- function(vec){
 sub_check <- function(sub_df, strains){
   result <- list()
   for(vir in strains){
-    d_zero <- sub_df[which(sub_df$virus == vir & sub_df$study_time_collected == 0),]
-    d_other <- sub_df[which(sub_df$virus == vir & sub_df$study_time_collected > 0),]
-    if(nrow(d_zero) > 0 & nrow(d_other) > 0){
-      result[[vir]] <- TRUE
-    }else{
-      result[[vir]] <- FALSE
-    }
+    d_zero <- sub_df[ which(sub_df$virus == vir & sub_df$study_time_collected == 0), ]
+    d_other <- sub_df[ which(sub_df$virus == vir & sub_df$study_time_collected > 0), ]
+    result[[vir]] <- (nrow(d_zero) > 0 & nrow(d_other) > 0)
   }
   final <- !(FALSE %in% result)
-  return(final)
 }
 
 max_select <- function(subid, trg_col){
@@ -73,66 +67,15 @@ max_select <- function(subid, trg_col){
   return(max(unlist(tmp_ls), na.rm = TRUE))
 }
 
-# Method by Yuri Kotliarov to categorize an observation based on low and high percentiles
-# Changed slightly to round fc_res_max values to 7 digits prior to comparison with quantile
-# values which are interpolated and therefore can throw off assignment if intention is to
-# use them as if they are nearest order statistic (similar to type = 3 in quantiles args).
-discretize <- function(df, input_col, low_perc, sdy, name){
-  xq <- quantile(df[[input_col]],
-                 c( (low_perc/100), 1 - (low_perc/100) ),
-                 na.rm = T,
-                 type = 7)
-  xd <- ""
-  if(sdy == "SDY67" && name == "combined"){
-    xd <- sapply(df[[input_col]], FUN = function(x){
-      if(is.na(x)){
-        return(NaN)
-      }else if(round(x, digits = 7) < round(xq[[1]], digits = 7)){
-        return(0)
-      }else if(round(x, digits = 7) >= round(xq[[2]], digits = 7)){
-        return(2)
-      }else{
-        return(1)
-      }
-    })
-  }else if(sdy == "SDY404" && name == "young"){
-    xd <- sapply(df[[input_col]], FUN = function(x){
-      if(is.na(x)){
-        return(NaN)
-      }else if(round(x, digits = 7) < round(xq[[1]], digits = 7)){
-        return(0)
-      }else if(round(x, digits = 7) > round(xq[[2]], digits = 7)){
-        return(2)
-      }else{
-        return(1)
-      }
-    })
-  }else{
-    xd <- sapply(df[[input_col]], FUN = function(x){
-      if(is.na(x)){
-        return(NaN)
-      }else if(round(x, digits = 7) <= round(xq[[1]], digits = 7)){
-        return(0)
-      }else if(round(x, digits = 7) >= round(xq[[2]], digits = 7)){
-        return(2)
-      }else{
-        return(1)
-      }
-    })
-  }
+# Original discretize function from Yuri Kotliarov
+# Does NOT return original results for $fc_res_max_d30 unless using type = 5
+discretize <- function(x, low_perc){
+  xq <- quantile(x, c((low_perc/100), 1 - (low_perc/100)), na.rm = T, type = 5)
+  xd <- ifelse( is.na(x), NaN, 1 )
+  xd[ x <= xq[1] ] = 0
+  xd[ x >= xq[2] ] = 2
   return(xd)
 }
-
-# Original discretize function from Yuri Kotliarov
-# NOTE: Does not return original results for $fc_res_max_d30
-# discretize <- function(df, input_col, low_perc) {
-#   x <- df[[input_col]]
-#   xq = quantile(x, c((low_perc/100), 1 - (low_perc/100)), na.rm=T)
-#   xd = ifelse(is.na(x),NA,1)
-#   xd[x<=xq[1]] = 0
-#   xd[x>=xq[2]] = 2
-#   return(xd)
-# }
 
 # for splitting participant_id string to remove sdy info
 sub_split <- function(x){
@@ -143,7 +86,6 @@ sub_split <- function(x){
 # Drop columns by name
 drop_cols <- function(df, cols_to_drop){
   df <- df[ , !(names(df) %in% cols_to_drop)]
-  return(df)
 }
 
 #-----Main method--------------
@@ -165,7 +107,6 @@ adjust_hai <- function(sdy, rawdata){
     strains <- unique(rawdata$virus)
     strains <- sapply(strains, FUN = function(x){
       x <- gsub("\\.|\\/| |-|\\(|\\)", "_", x)
-      return(x)
     })
   }
 
@@ -257,28 +198,21 @@ adjust_hai <- function(sdy, rawdata){
     titer_data[, fc_names[[i]] ] <- titer_data[ , d28_names[[i]] ] / titer_data[ , d0_names[[i]] ]
   }
 
+  opts <- c("d0_","fc_")
+
   glob_vals <- list()
   if(sdy != "SDY80"){
     # setup list to hold median and sd values for later use in calculations
     glob_names <- c("d0_med", "d0_sd","fc_med", "fc_sd")
     li <- vector("list",length = length(strains))
     names(li) <- strains
-
-    for(l in glob_names){
-      glob_vals[[l]] <- li
-    }
-
-    # calc median and sd for d0 cols
-    glob_vals <- med_sd_calc("d0_", strains , glob_vals, titer_data)
-
-    # calc fold change med and sd
-    glob_vals <- med_sd_calc("fc_", strains , glob_vals, titer_data)
+    for( l in glob_names ){ glob_vals[[l]] <- li }
+    for( ver in opts ){ glob_vals <- med_sd_calc(ver, strains , glob_vals, titer_data) }
   }
 
   # calc standardized and normalized value for each possibility of (d0,fc) x (strains)
   # sd used in all non-SDY80 studies because more than 50% of subjects were defined
   # as non-responders which causes denominator to be zero
-  opts <- c("d0_","fc_")
   for(ver in opts){
     for(virus in strains){
       std_norm_col <- paste0(ver, "std_norm_", virus)
@@ -307,9 +241,7 @@ adjust_hai <- function(sdy, rawdata){
   }
 
   # determine fc_max_4fc, which is categorization based on fold change > 4
-  titer_data$fc_max_4fc <- unlist(lapply(titer_data$fc_max, FUN = function(x){
-    if(x > 4){return(1)}else{return(0)}
-    }))
+  titer_data$fc_max_4fc <- sapply(titer_data$fc_max, FUN = function(x){ ifelse(x > 4, 1, 0) })
 
   # Inverse normal transformation of standardized/normalized max fold change column
   # Done by quantile normalization on a modified ranking of observations
@@ -434,7 +366,7 @@ adjust_hai <- function(sdy, rawdata){
     for(cl in in_cols){
       for(perc in in_percs){
         targ_col <- paste0(cl,"_d", perc)
-        df[[targ_col]] <- discretize(df, cl, perc, sdy, name)
+        df[[targ_col]] <- discretize(df[[cl]], perc)
       }
     }
 

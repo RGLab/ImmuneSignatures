@@ -78,11 +78,11 @@ meta_analysis <- function(eset_list, cohort){
   validation.sdy <- ifelse(cohort == 'young', "SDY80", "SDY67")
 
   # Parse Gene Module that is preloaded as part of package
-  gene_set <- strsplit(geneSetDB,"\t")            ## convert from vector of strings to a list
-  names(gene_set) <- sapply(gene_set,"[",1)      ## move the names column as the names of the list
-  gene_set <- lapply(gene_set, "[",-1:-2)        ## remove name and description columns
-  gene_set <- lapply(gene_set, function(x){ x[which(x!="")] })      ## remove empty strings
-
+  # gene_set <- strsplit(geneSetDB,"\t")            ## convert from vector of strings to a list
+  # names(gene_set) <- sapply(gene_set,"[",1)      ## move the names column as the names of the list
+  # gene_set <- lapply(gene_set, "[",-1:-2)        ## remove name and description columns
+  # gene_set <- lapply(gene_set, function(x){ x[which(x!="")] })      ## remove empty strings
+  gene_set <- mapped_geneSetDB
 
   #########################################################################################################
   ##
@@ -132,7 +132,6 @@ meta_analysis <- function(eset_list, cohort){
            lty=1, col=c("#E41A1C","#377EB8","#4DAF4A","#984EA3","black"))
     text(0.2, 1, paste("P value =", format(combined.p[i], digits=2),sep=""))
   }
-
 
 
   #########################################################################################################

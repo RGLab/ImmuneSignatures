@@ -31,6 +31,8 @@ library(stringr)
 library(hash)
 library(dplyr)
 library(qusage) 
+library(org.Hs.eg.db)
+library(AnnotationDbi)
 
 options(width = 999)
 knitr::opts_chunk$set(echo=FALSE, 
@@ -60,7 +62,7 @@ for(sdy in studies){
     mats <- con$GeneExpressionMatrices()
     eset <- con$getGEMatrix(mats$name, summary = F) 
     tmp_pData <- pData(eset)
-    adj_em <- adjust_GE(eset)
+    adj_em <- adjust_GE(eset, sdy)
     new_fData <- data.frame(rownames(adj_em))
     rownames(new_fData) <- rownames(adj_em)
     colnames(new_fData) <- c("gene_symbol")
