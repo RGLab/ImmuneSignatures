@@ -11,48 +11,39 @@
 #########################################################################################################
 
 # EH NOTE:
-# This version is heavily refactored and much of the eset adjustment is done in pipeline_demo.Rmd.
+# This version is heavily refactored and much of the eset adjustment is done in ImmSig_Pipeline_Demo.Rmd.
 
 #---------HELPER METHODS--------------------------------------------------
 
 adjust_eset <- function(eset, cohort){
-
-  ## change from "lockedEnvironment" to "list" to modify assayData
-  storageMode(assayData(eset)) <- "list"
-
-  ## Select phenoData for correct cohort and remove other values (e.g. all / old if young)
-  hai_var <- grep("^((fc)|(d0))_", varLabels(eset), value = TRUE)
-
-  if( cohort == 'young'){
-    oppo <- "old"
-    cap_cohort <- "Young"
-  }else{
-    oppo <- "young"
-    cap_cohort <- "Old"
-  }
-
+  storageMode(assayData(eset)) <- "list" ## change from "lockedEnvironment" to modify assayData
+  hai_var <- grep("^((fc)|(d0))_", varLabels(eset), value = TRUE) ## Select correct PhenoData
+  oppo <- ifelse( cohort == 'young', "old", "young")
   eset <- eset[, eset$Age.class %in% cohort] # set in adjust_hai
   phenoData(eset) <- phenoData(eset)[, setdiff(varLabels(eset),
                                                c(hai_var, paste0(oppo, "_", hai_var)))]
   varLabels(eset) <- gsub(paste0("^", cohort, "_"), '', varLabels(eset))
-
-  ## change back to "lockedEnvironment" to prevent chagnes
   storageMode(assayData(eset)) <- "lockedEnvironment"
-
-  ## result
   return(eset)
 }
 
 # Must sink to stop many print statements in qusage() from showing in report
 run_qusage <- function(raw_eset, cohort, sdy, endPoint, gene_set){
-  adj_eset <- adjust_eset(raw_eset, cohort)
-  expr_mat <- exprs(adj_eset)
-  gs_name <- ifelse(sdy == "SDY67", "geneSymbol", "gene_symbol")
-  rownames(expr_mat)  <- as.character(fData(adj_eset)[[gs_name]])
-  labels <- as.character(pData(adj_eset)[ , endPoint ])
+  adj_eset <- if(sdy != "SDY80"){ adjust_eset(raw_eset, cohort) }else{ raw_eset }
+  em <- data.frame(apply(exprs(adj_eset), 2, function(x){ as.numeric(x) } ))
+  rownames(em) <- rownames(exprs(adj_eset))
+  em$geneSymbol <- fData(adj_eset)[["gene_symbol"]]
+  adj_em <- adjust_GE(em)
+  labels <- pData(adj_eset)[, endPoint]
 
-  sink("tmp")
-  result <- qusage(expr_mat, labels, "2-0", gene_set)
+  ## remove samples without definition of response - applies to SDY400 and SDY80
+  if(any(is.na(labels))){
+    adj_em <- adj_em[,-which(is.na(labels))]
+    labels <- labels[-which(is.na(labels))]
+  }
+
+  sink(tempfile())
+  result <- qusage(adj_em, labels, "2-0", gene_set)
   sink(NULL)
 
   return(result)
@@ -65,7 +56,7 @@ run_qusage <- function(raw_eset, cohort, sdy, endPoint, gene_set){
 #' @param cohort Study cohort, young or old
 #' @export
 
-meta_analysis <- function(eset_list, cohort){
+meta_analysis <- function(eset_list, cohort, gene_set){
 
   # original manuscript params
   FDR.cutoff <- 0.5
@@ -76,13 +67,6 @@ meta_analysis <- function(eset_list, cohort){
 
   discoverySDY = c('SDY212','SDY63','SDY404','SDY400')
   validation.sdy <- ifelse(cohort == 'young', "SDY80", "SDY67")
-
-  # Parse Gene Module that is preloaded as part of package
-  # gene_set <- strsplit(geneSetDB,"\t")            ## convert from vector of strings to a list
-  # names(gene_set) <- sapply(gene_set,"[",1)      ## move the names column as the names of the list
-  # gene_set <- lapply(gene_set, "[",-1:-2)        ## remove name and description columns
-  # gene_set <- lapply(gene_set, function(x){ x[which(x!="")] })      ## remove empty strings
-  gene_set <- mapped_geneSetDB
 
   #########################################################################################################
   ##
@@ -95,7 +79,11 @@ meta_analysis <- function(eset_list, cohort){
 
   for(sdy in discoverySDY){
     idx <- idx + 1
-    quSageObjList[[idx]] <- run_qusage(eset_list[[sdy]], cohort, sdy, endPoint, gene_set)
+    quSageObjList[[idx]] <- run_qusage(raw_eset = eset_list[[sdy]],
+                                       cohort = cohort,
+                                       sdy = sdy,
+                                       endPoint = endPoint,
+                                       gene_set = gene_set)
   }
 
   ## gene module meta analysis

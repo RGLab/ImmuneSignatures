@@ -2,5 +2,5 @@
 
 export(adjust_GE)
 export(adjust_hai)
-export(hashmap)
+export(getGE)
 export(meta_analysis)

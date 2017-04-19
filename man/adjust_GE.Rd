@@ -5,12 +5,10 @@
 \title{Function to select only the probes with highest expression for each gene and
 remove the rest from the expression matrix}
 \usage{
-adjust_GE(eset)
+adjust_GE(expr_mx)
 }
 \arguments{
 \item{eset}{ExpressionSet object that has expression matrix in AssayData()}
-
-\item{gene_symbols}{Character vector that matches rownames of exprs(eset)}
 }
 \description{
 Function to select only the probes with highest expression for each gene and

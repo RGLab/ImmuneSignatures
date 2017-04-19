@@ -30,9 +30,10 @@ library(Biobase)
 library(stringr)
 library(hash)
 library(dplyr)
-library(qusage) 
-library(org.Hs.eg.db)
-library(AnnotationDbi)
+library(qusage)
+library(RCurl)
+library(data.table)
+library(preprocessCore)
 
 options(width = 999)
 knitr::opts_chunk$set(echo=FALSE, 
@@ -45,37 +46,32 @@ knitr::opts_chunk$set(echo=FALSE,
                fig.align = "center")
 ```
 
-```{r include=FALSE}
+```{r prepare-esets, include=FALSE}
 # 1. Create expressionSet object using data from ImmuneSpace
 studies <- c("SDY212","SDY63","SDY404","SDY400","SDY67","SDY80")
 eset_list <- list()
+labkey.url.base <- "https://test.immunespace.org"
 
 for(sdy in studies){
-  labkey.url.path <- paste0("/Studies/", sdy, "/")
-  con <- CreateConnection(sdy)
-  
-  # Get expressionSet object with normalized gene expression values, use highest expression
-  # probe for each gene_symbol and remove others. Finally map SampleNames.
-  # Mapping done with "biosmpl2sub" object generated from ImmuneSpace Schema Browser.
-  # NOTE 1: SDY67 was normalized using DEseq method. See ImmSigPkg code for details.
-  if(sdy != "SDY67"){ # SDY67 and SDY400 not able to run through HIPCmatrix
-    mats <- con$GeneExpressionMatrices()
-    eset <- con$getGEMatrix(mats$name, summary = F) 
-    tmp_pData <- pData(eset)
-    adj_em <- adjust_GE(eset, sdy)
-    new_fData <- data.frame(rownames(adj_em))
-    rownames(new_fData) <- rownames(adj_em)
-    colnames(new_fData) <- c("gene_symbol")
-    eset <- ExpressionSet(assayData = as.matrix(adj_em),
-                          featureData = AnnotatedDataFrame(new_fData),
-                          phenoData = AnnotatedDataFrame(tmp_pData))
-    if(sdy == "SDY212"){ eset <- eset[ , -which(sampleNames(eset) == "BS694717") ] } # Remove dup biosamples
-    sampleNames(eset) <- unname(hashmap(biosmpl2sub$Biosample, biosmpl2sub$GE_ID, sampleNames(eset)))
-  }else{
-    eset <- get(paste0(sdy, "_min_eset"))
-  } 
+  if(sdy %in% c("SDY400")){
+    # SDY400:
+    # Using original table because GEO series matrix produces different results in terms of gene symbols
+    # incorporated into qusage analysis, perhaps due to different normalization method(?), and GEO
+    # non-normalized.txt does not have sample names that can be mapped with available information.
+    # All original tables come from HIPC Google Drive.
+    em <- get(paste0(tolower(sdy), "_exprMxOrig"))
+  } else {
+    # See comments in get_GE.R for methodology of generating expression matrices. These matrices
+    # are created using online, public sources (e.g. GEO or ImmuneSpace).
+    em <- getGE(sdy) 
+  }
+  if(sdy == "SDY212"){ em <- em[ , -(grep("SUB134307.*", colnames(em))) ] } # Remove dup biosamples
+  new_fData <- data.frame(gene_symbol = em$geneSymbol, stringsAsFactors = F)
+  rownames(new_fData) <- rownames(em)
+  eset <- ExpressionSet(assayData = as.matrix(em),
+                        featureData = AnnotatedDataFrame(new_fData))
 
-  # # Parse Subject IDs and Limit expression data to baseline (d0) only
+  # Parse Subject IDs and Limit expression data to baseline (d0) only
   factored_ids <- str_match(sampleNames(eset), "(((SUB)|(sub))_?[0-9]+)(\\.[0-9])?_(.*)")
   eset$Condition <- factor(factored_ids[, 7L])
   eset <- eset[ , grep("^d0", eset$Condition) ]
@@ -86,12 +82,8 @@ for(sdy in studies){
 
   # Get raw HAI data from Immunespace where feasible and adjust according to Yuri Kotliarov code.
   # NOTE: SDY80 raw data in ImmuneSpace differs, therefore using preloaded.
-  if(sdy != "SDY80"){
-    raw_hai <- con$getDataset("hai")
-  }else{
-    raw_hai <- SDY80_rawtiterdata_v2
-  }
-
+  con <- CreateConnection(sdy)
+  raw_hai <- if(sdy != "SDY80"){ con$getDataset("hai") }else{ SDY80_rawtiterdata_v2 }
   adj_hai <- adjust_hai(sdy, raw_hai)
 
   # Age needed for SDY80 to remove subjects over 36 years old
@@ -111,16 +103,26 @@ for(sdy in studies){
   rownames(adj_hai) <- sampleNames(eset)
   pData(eset) <- droplevels(adj_hai)
   
+  # push to holder
   eset_list[[sdy]] <- eset
 }
+
+# Prep GeneSetDB
+gene_set <- strsplit(geneSetDB, "\t")            ## convert from vector of strings to a list
+names(gene_set) <- sapply(gene_set,"[", 1)       ## move the names column as the names of the list
+links <- sapply(gene_set,"[", 2)
+gene_set <- lapply(gene_set, "[",-1:-2)         ## remove name and description columns
+gene_set <- lapply(gene_set, function(x){ x[ which( x != "") ] })      ## remove empty strings
+  
 ```
 
 ## META-ANALYSIS 
 
 ### YOUNG COHORT RESULTS
-```{r include=TRUE, results="markup"}
+```{r meta-analysis-young, include=TRUE, results="markup"}
 yng_res <- meta_analysis(eset_list = eset_list,
-                         cohort = "young")
+                         cohort = "young",
+                         gene_set = gene_set)
 ```
 
 #### Discovery Group Significant Pathways Data  
@@ -137,9 +139,10 @@ DT::datatable(yng_res$val)
 
 ### OLD COHORT RESULTS
 
-```{r include=TRUE, results="markup"}
+```{r meta-analysis-old, include=TRUE, results="markup"}
 old_res <- meta_analysis(eset_list = eset_list,
-                         cohort = "old")
+                         cohort = "old",
+                         gene_set = gene_set)
 ```
 
 #### Discovery Group Significant Pathways Data  
