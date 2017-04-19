@@ -42,7 +42,7 @@ run_qusage <- function(raw_eset, cohort, sdy, endPoint, gene_set){
     labels <- labels[-which(is.na(labels))]
   }
 
-  sink(tempfile())
+  sink("tmp")
   result <- qusage(adj_em, labels, "2-0", gene_set)
   sink(NULL)
 

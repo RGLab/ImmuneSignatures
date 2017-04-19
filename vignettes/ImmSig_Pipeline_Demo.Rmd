@@ -18,10 +18,24 @@ output: rmarkdown::html_document
 
 ## GENERAL NOTES:
 This markdown file outputs the results of the HIPC ImmuneSignatures Project using the original parameters and
-streamlined code from the published manuscript but run with data coming direclty from ImmuneSpace. Interested 
-users may re-run the full pipeline with the same or other parameters using the 'hipc_full_pipeline()' method 
-in the "ImmSigPkg" available on github via install_github("ehfhcrc/ImmSigPkg").  The ImmSigPkg also outputs
-intermediate files similar to the original study, allowing for easier comparison through the pipeline.
+streamlined code from the published manuscript but run with data coming directly from ImmuneSpace. In order 
+to save time, the gene expression matrices are pre-loaded as data within the package.  The code to generate 
+these expression matrices from ImmuneSpace / GEO can be found in the "get_GE.R" script within the package.
+There are two cases where data from ImmuneSpace could not be used: SDY80 (hai) and SDY400 (ge).  
+
+The SDY80 hai data available on ImmuneSpace is not incorporated into the analysis because it does not include 
+subjects without gene expression data.  Although subjects without GE data are filtered out later, they must 
+be included in the adjust_hai.R script in order to achieve the same results for the "endPoint" variable 
+("fc_res_maxd30").  The original raw HAI data came from Yuri Kotliarov at NIH and is included within the package. 
+
+The SDY400 gene expression data used in the package comes from the authors at Yale University because the "series.txt"
+file on GEO has different probe-to-gene symbol mapping that cannot be retroactively changed, while the
+"non-normalized.txt" version on GEO has experiment specific subject ID mappings that were not able to be correctly
+given ImmuneSpace subject ids at the time of this report's development.
+
+Finally, the results for the "old" cohort using SDY67 data are slightly different (<0.5% Relative Error).  This is 
+believed to be due to updates or changes in the normalization package used in the meta-analysis (DESeq) between the 
+time of the original code development and this report's development.
 
 ```{r set-options, include=FALSE}
 library(ImmSig2) # to load data and helper functions
@@ -37,7 +51,8 @@ library(preprocessCore)
 
 options(width = 999)
 knitr::opts_chunk$set(echo=FALSE, 
-               cache=FALSE, 
+               cache.path=paste(labkey.file.root, "cache/pubmed_report_cache/", sep="/"),
+               cache=TRUE, 
                warning=FALSE, 
                message=FALSE, 
                tidy=TRUE,
@@ -50,7 +65,7 @@ knitr::opts_chunk$set(echo=FALSE,
 # 1. Create expressionSet object using data from ImmuneSpace
 studies <- c("SDY212","SDY63","SDY404","SDY400","SDY67","SDY80")
 eset_list <- list()
-labkey.url.base <- "https://test.immunespace.org"
+# labkey.url.base <- "https://test.immunespace.org"
 
 for(sdy in studies){
   if(sdy %in% c("SDY400")){
