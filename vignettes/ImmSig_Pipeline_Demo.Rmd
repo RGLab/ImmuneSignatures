@@ -34,8 +34,7 @@ file on GEO has different probe-to-gene symbol mapping that cannot be retroactiv
 given ImmuneSpace subject ids at the time of this report's development.
 
 Finally, the results for the "old" cohort using SDY67 data are slightly different (<0.5% Relative Error).  This is 
-believed to be due to updates or changes in the normalization package used in the meta-analysis (DESeq) between the 
-time of the original code development and this report's development.
+believed to be due rounding to the 6th decimal that occurs during preprocessing.
 
 ```{r set-options, include=FALSE}
 library(ImmSig2) # to load data and helper functions
@@ -51,7 +50,7 @@ library(preprocessCore)
 
 options(width = 999)
 knitr::opts_chunk$set(echo=FALSE, 
-               cache.path=paste(labkey.file.root, "cache/pubmed_report_cache/", sep="/"),
+               #cache.path=paste(labkey.file.root, "cache/pubmed_report_cache/", sep="/"), # for IS site only
                cache=TRUE, 
                warning=FALSE, 
                message=FALSE, 
@@ -65,7 +64,6 @@ knitr::opts_chunk$set(echo=FALSE,
 # 1. Create expressionSet object using data from ImmuneSpace
 studies <- c("SDY212","SDY63","SDY404","SDY400","SDY67","SDY80")
 eset_list <- list()
-# labkey.url.base <- "https://test.immunespace.org"
 
 for(sdy in studies){
   if(sdy %in% c("SDY400")){
@@ -97,6 +95,7 @@ for(sdy in studies){
 
   # Get raw HAI data from Immunespace where feasible and adjust according to Yuri Kotliarov code.
   # NOTE: SDY80 raw data in ImmuneSpace differs, therefore using preloaded.
+  # labkey.url.path <- paste0("/Studies/", sdy, "/") # for IS site only
   con <- CreateConnection(sdy)
   raw_hai <- if(sdy != "SDY80"){ con$getDataset("hai") }else{ SDY80_rawtiterdata_v2 }
   adj_hai <- adjust_hai(sdy, raw_hai)
