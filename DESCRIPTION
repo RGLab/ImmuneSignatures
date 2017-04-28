@@ -8,7 +8,8 @@ Description: Package outputs report with data and figures from HIPC ImmuneSignat
 License: What license is it under?
 Encoding: UTF-8
 LazyData: true
-Depends: ImmuneSpaceR
+Depends: ImmuneSpaceR,
+    data.table
 Imports: Rlabkey,
     dplyr,
     stringr,
