@@ -38,20 +38,30 @@ believed to be due to updates or changes in the normalization package used in th
 time of the original code development and this report's development.
 
 ```{r set-options, include=FALSE}
+# Eset prep
 library(ImmSig2) # to load data and helper functions
 library(Rlabkey)
 library(Biobase) 
 library(stringr)
 library(hash)
 library(dplyr)
-library(qusage)
 library(RCurl)
 library(data.table)
-library(preprocessCore)
+library(preprocessCore) # biocLite
+
+# Module / Gene Set Analysis
+library(qusage) # biocLite
+
+# Single Gene Analysis
+library(pROC) 
+library(RMySQL) # depends on libmysqlclient, sudo apt-get install libmysqlclient-dev
+library(ggplot2) 
+library(clinfun) 
+library(MetaIntegrator) # biocLite
 
 options(width = 999)
 knitr::opts_chunk$set(echo=FALSE, 
-               cache.path=paste(labkey.file.root, "cache/pubmed_report_cache/", sep="/"),
+               # cache.path=paste(labkey.file.root, "cache/pubmed_report_cache/", sep="/"), # for IS Report
                cache=TRUE, 
                warning=FALSE, 
                message=FALSE, 
@@ -61,14 +71,16 @@ knitr::opts_chunk$set(echo=FALSE,
                fig.align = "center")
 ```
 
-```{r prepare-esets, include=FALSE}
-# 1. Create expressionSet object using data from ImmuneSpace
+#### Generating and Pre-Processing expressionSet Objects
+
+This first code chunk shows how the expressionSet objects are constructed from ImmuneSpace data and put into a list for use in the analysis pipeline.
+
+```{r prepare-esets, echo=TRUE}
 studies <- c("SDY212","SDY63","SDY404","SDY400","SDY67","SDY80")
 eset_list <- list()
-# labkey.url.base <- "https://test.immunespace.org"
 
 for(sdy in studies){
-  if(sdy %in% c("SDY400")){
+  if(sdy == "SDY400"){
     # SDY400:
     # Using original table because GEO series matrix produces different results in terms of gene symbols
     # incorporated into qusage analysis, perhaps due to different normalization method(?), and GEO
@@ -80,16 +92,23 @@ for(sdy in studies){
     # are created using online, public sources (e.g. GEO or ImmuneSpace).
     em <- getGE(sdy) 
   }
-  if(sdy == "SDY212"){ em <- em[ , -(grep("SUB134307.*", colnames(em))) ] } # Remove dup biosamples
+  
+  # Remove dup biosamples based on Yale HIPCMetaModuleAnalysis code comments
+  if(sdy == "SDY212"){ em <- em[ , -(grep("SUB134307.*", colnames(em))) ] }
+  
+  # Swap expr vals based on Stanford SGA code comments
+  if(sdy == "SDY404"){
+    em <- swapCols(em, "SUB120473_d0", "SUB120474_d0") # Incorrect Sex
+    em <- swapCols(em, "SUB120460_d0", "SUB120485_d28") # Strong evidence
+  }
+
   new_fData <- data.frame(gene_symbol = em$geneSymbol, stringsAsFactors = F)
   rownames(new_fData) <- rownames(em)
   eset <- ExpressionSet(assayData = as.matrix(em),
                         featureData = AnnotatedDataFrame(new_fData))
 
   # Parse Subject IDs and Limit expression data to baseline (d0) only
-  factored_ids <- str_match(sampleNames(eset), "(((SUB)|(sub))_?[0-9]+)(\\.[0-9])?_(.*)")
-  eset$Condition <- factor(factored_ids[, 7L])
-  eset <- eset[ , grep("^d0", eset$Condition) ]
+  eset <- eset[ , grep("d0", sampleNames(eset)) ]
 
   # Get baseline eset Subjects
   factored_ids <- str_match(sampleNames(eset), "(((SUB)|(sub))_?[0-9]+)(\\.[0-9])?_(.*)")
@@ -112,8 +131,8 @@ for(sdy in studies){
   }
 
   # Ensure HAI and eset contain same subjects in same order, then push to pData
-  eset <- eset[ , which(eset_subs %in% adj_hai$subject) ]
-  adj_hai <- adj_hai[ which(adj_hai$subject %in% eset_subs), ]
+  eset <- eset[ , eset_subs %in% adj_hai$subject ]
+  adj_hai <- adj_hai[ adj_hai$subject %in% eset_subs, ]
   adj_hai <- adj_hai[ order(match(adj_hai$subject, eset_subs)), ]
   rownames(adj_hai) <- sampleNames(eset)
   pData(eset) <- droplevels(adj_hai)
@@ -128,14 +147,51 @@ names(gene_set) <- sapply(gene_set,"[", 1)       ## move the names column as the
 links <- sapply(gene_set,"[", 2)
 gene_set <- lapply(gene_set, "[",-1:-2)         ## remove name and description columns
 gene_set <- lapply(gene_set, function(x){ x[ which( x != "") ] })      ## remove empty strings
-  
 ```
 
-## META-ANALYSIS 
+The list of expressionSet objects are then adjusted for each cohort to select the correct gene expression and hai information by subsetting the subjects.
+
+```{r adjust-esets-by-cohort, echo=TRUE}
+adjust_eset <- function(sdy, eset_list, cohort){
+  eset <- eset_list[[sdy]]
+  storageMode(assayData(eset)) <- "list" ## change from "lockedEnvironment" to modify assayData
+  
+  ## Select correct PhenoData in terms of young or old fc_res_max_d30 and delete rest
+  hai_var <- grep("^((fc)|(d0))_", varLabels(eset), value = TRUE) 
+  oppo <- ifelse( cohort == 'young', "old", "young")
+  eset <- eset[, eset$Age.class %in% cohort] # set in adjust_hai
+  phenoData(eset) <- phenoData(eset)[, setdiff(varLabels(eset),
+                                               c(hai_var, paste0(oppo, "_", hai_var)))]
+  varLabels(eset) <- gsub(paste0("^", cohort, "_"), '', varLabels(eset))
+  
+  # remove NAs from fc_res_max_d30 pheno and therefore exprs to streamline
+  eset <- eset[ , !is.na(eset$fc_res_max_d30) ] 
+  
+  storageMode(assayData(eset)) <- "lockedEnvironment"
+  return(eset)
+}
+
+esetLsMkr <- function(eset_list, cohort){
+  valSdy <- ifelse(cohort == "young", "SDY80", "SDY67")
+  corrEsetList <- eset_list[ c("SDY212","SDY63","SDY404","SDY400", valSdy) ]
+  adjEsetList <- lapply(names(corrEsetList), adjust_eset, 
+                        eset_list = corrEsetList, 
+                        cohort = cohort)
+  names(adjEsetList) <- names(corrEsetList)
+  return(adjEsetList)
+}
+
+yngEsetLs <- esetLsMkr(eset_list, cohort = "young")
+oldEsetLs <- esetLsMkr(eset_list, cohort = "old")
+```
+
+## GENE SET META-ANALYSIS
+***
+The Gene Set or Module meta analysis based on work by the Yale HIPC collaborators is run first.  The analysis is performed by the `QuSage` package that is found on BioConductor.  The Validation Study Significant Pathways for the Young Cohort differs here slightly from the original work by the manuscript authors because this version uses the `endPoint` column of `$young_fc_res_max_d30` which is the adjMFC for the SDY80 subjects calculated with only subjects < 36 Years Old.  The original work, perhaps unintentionally, uses the `$fc_res_max_d30` which is the adjMFC metric calculated with all subjects from the study.  The key line here is Ln 178 in `HIPCMetaModuleAnalysis_V2.R` which reads `eset <- getSDY(validation.sdy, 'all', endPoint, adjusted=FALSE, baselineOnly=TRUE)`.  The second argumen `all` should read `young` as this determines which column to select as the `endPoint` from the `pData(eSet)`.  This code can be viewed in the package's folder `origCode`.
 
 ### YOUNG COHORT RESULTS
 ```{r meta-analysis-young, include=TRUE, results="markup"}
-yng_res <- meta_analysis(eset_list = eset_list,
+yng_res <- meta_analysis(adj_eset_list = yngEsetLs,
                          cohort = "young",
                          gene_set = gene_set)
 ```
@@ -155,7 +211,7 @@ DT::datatable(yng_res$val)
 ### OLD COHORT RESULTS
 
 ```{r meta-analysis-old, include=TRUE, results="markup"}
-old_res <- meta_analysis(eset_list = eset_list,
+old_res <- meta_analysis(adj_eset_list = oldEsetLs,
                          cohort = "old",
                          gene_set = gene_set)
 ```
@@ -172,8 +228,44 @@ DT::datatable(old_res$val)
 
 ***
 
-### PARAMETERS:
+#### PARAMETERS:
 - **FDR.cutoff: ** 0.5
 - **pvalue.cutoff: ** 0.01
 - **endPoint: ** fc_res_max_d30
 - **geneSetDB: ** BTM_for_GSEA_20131008.gmt
+
+***
+
+## SINGLE GENE ANALYSIS
+The single gene meta analysis was created by the Stanford HIPC collaborators and uses their package `MetaIntegrator`, which is also available on BioConductor.  The plots for the Young Cohort differ here slightly from the original work by the manuscript authors because this version uses the `endPoint` column of `$young_fc_res_max_d30` which is the adjMFC for the SDY80 subjects calculated with only subjects < 36 Years Old.  The original work, perhaps unintentionally, uses the `$fc_res_max_d30` which is the adjMFC metric calculated with all subjects from the study.  The key line in the code is Ln132 in `hipc_multiCohortAnalysis_script_paper.R`, which reads `GEM$class <- as.integer(as.character(GEM$pheno[[field]]))`, where the field argument is set in Ln694 `SDY80day0 <- GEM_formatter(hipc_gems_valid$SDY80, field = "fc_res_max_d30")` and should read `young_fc_res_max_d30` if not using an expressionSet that has been adjusted as this report does.
+
+```{r Single-Gene-Analysis, include=FALSE}
+  sgaResYng <- singleGeneAnalysis(adjEsetList = yngEsetLs, cohort = "young")
+```
+
+### YOUNG COHORT
+***
+#### Discovery - Upregulated Genes
+```{r}
+  DT::datatable(sgaResYng$disc$upReg)
+```
+
+#### Discovery - Downregulated Genes
+```{r}
+  DT::datatable(sgaResYng$disc$dnReg)
+```
+
+***
+#### Violin Plot - SDY80
+```{r}
+  sgaResYng$val$ViolinPlot
+```
+
+#### ROC Plot - SDY80
+```{r}
+  sgaResYng$val$RocPlot
+```
+***
+
+### OLD COHORT
+No Significant up or down-regulated genes are found using the adjusted expressionSet and therefore analysis is not performed on SDY67.

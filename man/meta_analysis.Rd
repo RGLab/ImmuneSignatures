@@ -4,12 +4,12 @@
 \alias{meta_analysis}
 \title{Function to perform meta analysis for HIPC ImmuneSignatures Project}
 \usage{
-meta_analysis(eset_list, cohort, gene_set)
+meta_analysis(adj_eset_list, cohort, gene_set)
 }
 \arguments{
-\item{eset_list}{list of expressionSet objects holding GE, HAI data}
-
 \item{cohort}{Study cohort, young or old}
+
+\item{eset_list}{list of expressionSet objects holding GE, HAI data}
 }
 \description{
 Function to perform meta analysis for HIPC ImmuneSignatures Project

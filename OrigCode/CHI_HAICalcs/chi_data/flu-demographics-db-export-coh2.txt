@@ -1,0 +1,83 @@
+gender	race	age	primary_id	sample_id
+M	White	24	200	200
+F	White	22	201	201
+M	Asain	23	202	202
+M	White	23	203	203
+F	White	22	204	204
+F	White	23	205	205
+M	Asain	23	206	206
+F	White	23	207	207
+M	White	23	209	209
+M	White	55	212	212
+F	Asain	30	213	213
+F	Asain	22	215	215
+M	African American	27	216	216
+F	White	23	217	217
+F	Hispanic	23	218	218
+M	White	26	220	220
+M	White	24	221	221
+F	Asain	25	222	222
+F	White	27	223	223
+M	White	23	224	224
+F	White	22	225	225
+F	White	26	226	226
+M	White	33	227	227
+M	White	24	228	228
+F	White	56	229	229
+F	White	24	230	230
+F	Asain	31	231	231
+M	Asain	44	232	232
+M	White	38	233	233
+M	African American	23	234	234
+M	White	22	235	235
+M	White	33	236	236
+F	White	21	237	237
+M	White	23	241	241
+M	White	34	242	242
+M	White	21	243	243
+F	Asain	41	244	244
+F	White	45	245	245
+F	White	23	246	246
+F	Middle Eastern	46	247	247
+F	White	35	248	248
+F	White	34	249	249
+F	Asain	50	250	250
+F	African American	46	251	251
+M	Asain	38	252	252
+F	White	24	254	254
+F	White	27	255	255
+F	African American	21	256	256
+F	White	23	257	257
+M	White(plausibly Middle Eastern)	26	258	258
+F	White	34	259	259
+F	Asain	51	260	260
+M	White	62	261	261
+F	White	24	262	262
+M	Asain	23	263	263
+F	Asain	29	264	264
+M	White	30	265	265
+F	Asain	22	266	266
+F	Asain	24	267	267
+M	White	34	268	268
+M	African American	27	269	269
+F	Asain	23	270	270
+F	White	23	271	271
+F	White	22	272	272
+F	African American	39	273	273
+F	White	24	274	274
+F	White	27	275	275
+F	White	22	276	276
+M	Asain	53	277	277
+F	White	46	278	278
+M	White	22	279	279
+F	Hispanic	44	280	280
+M	White	44	281	281
+M	White	39	282	282
+F	White	22	283	283
+M	White	28	284	284
+M	African American	22	286	286
+F	White	26	287	287
+F	White	23	292	292
+F	Asain	30	295	295
+M	White	24	299	299
+M	White	23	302	302
