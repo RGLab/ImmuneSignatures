@@ -40,7 +40,7 @@ meta_analysis <- function(adj_eset_list, cohort, gene_set){
 
   # original manuscript params
   FDR.cutoff <- 0.5
-  pvalue.cutoff <- 0.01
+  pvalue.cutoff <- 0.0105
   endPoint <- "fc_res_max_d30"
 
   result_dfs <- list() # holds output tables for use with markdown

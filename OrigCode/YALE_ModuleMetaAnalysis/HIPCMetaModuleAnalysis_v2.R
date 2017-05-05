@@ -46,7 +46,7 @@ pvalue.cutoff = 0.01 ## pvalue cutoff for gene module analysis to call significa
 ## Discovery cohorts: SDY212, SDY63, SDY404, SDY400
 ## Validation Cohorts: SDY80 (Young) and SDY67 (Older)
 #########################################################################################################
-source('getSDY.R') ## getSDY is the script from Renaud to read R object files and make sure it is in working directory
+source('getSDY_swaps.R') ## getSDY is the script from Renaud to read R object files and make sure it is in working directory
 getSDY <- .getSDY('data') ## all R objects should be in folder of "data" under working direcotory
 discoverySDY = c('SDY212','SDY63','SDY404','SDY400')
 if(cohort == 'young'){
@@ -82,7 +82,7 @@ for(sdy in discoverySDY){
   dataset_name=paste(sdy, cohort, endPoint, sep="_" )
   
   # read in data from R object
-  eset <- getSDY(sdy, cohort, endPoint, adjusted=FALSE, baselineOnly=TRUE)
+  eset <- getSDY(sdy, cohort, endPoint, adjusted=FALSE, baselineOnly=TRUE, swapSDY404 = TRUE)
   if(sdy=='SDY212' && cohort == 'young'){
     ## two subjects from SDY212 has the same subject ID "SUB134307", but Stanford don't know what happened to this
     ## so, we removed those two entries in data analysis

@@ -316,6 +316,7 @@
 #' Function to return the prepackaged expression matrix held in library. Kept
 #' outside of Rmd to allow for original code to be shown above.
 #'
+#' @import data.table Rlabkey
 #' @param sdy name of study
 #' @export
 #'

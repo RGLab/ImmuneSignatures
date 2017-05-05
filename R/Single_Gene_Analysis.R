@@ -283,7 +283,7 @@ metaRes <- function(gems){
 ###                       EXPORTED FUNCTIONS                                        ###
 #######################################################################################
 #' helper function SDY404 column swap
-#'
+#' 
 #' @param em expression matrix with colnames including sub1 and sub2
 #' @param sub1 subject 1
 #' @param sub2 subject 2
@@ -300,6 +300,7 @@ swapCols <- function(em, sub1, sub2){
 #***********MAIN METHOD***************************************************************
 #' Function to perform single gene meta analysis for HIPC ImmuneSignatures Project
 #'
+#' @import ggplot2 pROC clinfun
 #' @param adjEsetList list of expressionSet objects holding expr, pheno data adjusted for cohort
 #' @param cohort Study cohort, young or old
 #' @export

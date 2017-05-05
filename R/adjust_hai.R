@@ -92,6 +92,7 @@ drop_cols <- function(df, cols_to_drop){
 
 #' Function to generate HAI data table from ImmuneSpace Connection
 #'
+#' @import dplyr hash stringr
 #' @param rawdata dataframe of raw HAI data
 #' @param sdy ImmuneSpace Study Name
 #' @export
