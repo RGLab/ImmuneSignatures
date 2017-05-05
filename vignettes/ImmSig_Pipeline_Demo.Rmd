@@ -33,10 +33,6 @@ file on GEO has different probe-to-gene symbol mapping that cannot be retroactiv
 "non-normalized.txt" version on GEO has experiment specific subject ID mappings that were not able to be correctly
 given ImmuneSpace subject ids at the time of this report's development.
 
-<<<<<<< HEAD
-Finally, the results for the "old" cohort using SDY67 data are slightly different (<0.5% Relative Error).  This is 
-believed to be due rounding to the 6th decimal that occurs during preprocessing.
-=======
 Finally, the results for the "old" cohort using SDY67 data are slightly different ( <0.5% Relative Error ).  This is 
 is due to rounding that occurs from a transformation from one kind of data structure to another.
 
@@ -44,7 +40,7 @@ is due to rounding that occurs from a transformation from one kind of data struc
 In order to run this vignette locally, you would first need to install the following Bioconductor packages by hand: Biobase, qusage, and MetaIntegrator. Then install `ImmSig2` via `devtools::install_github("ehfhcrc/ImmSig2", build_vignettes=T)` and view the vignette with `vignette("ImmSig_Pipeline_demo", package="ImmSig2")`.  
 
 All original code developed for the production of the manuscript is also included in the /OrigCode folder within the package.  This can be viewed at <https://github.com/ehfhcrc/ImmSig2>. 
->>>>>>> dev
+
 
 ```{r set-options, include=FALSE}
 # Eset prep
