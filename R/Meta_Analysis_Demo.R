@@ -14,33 +14,13 @@
 # This version is heavily refactored and much of the eset adjustment is done in ImmSig_Pipeline_Demo.Rmd.
 
 #---------HELPER METHODS--------------------------------------------------
-
-adjust_eset <- function(eset, cohort){
-  storageMode(assayData(eset)) <- "list" ## change from "lockedEnvironment" to modify assayData
-  hai_var <- grep("^((fc)|(d0))_", varLabels(eset), value = TRUE) ## Select correct PhenoData
-  oppo <- ifelse( cohort == 'young', "old", "young")
-  eset <- eset[, eset$Age.class %in% cohort] # set in adjust_hai
-  phenoData(eset) <- phenoData(eset)[, setdiff(varLabels(eset),
-                                               c(hai_var, paste0(oppo, "_", hai_var)))]
-  varLabels(eset) <- gsub(paste0("^", cohort, "_"), '', varLabels(eset))
-  storageMode(assayData(eset)) <- "lockedEnvironment"
-  return(eset)
-}
-
 # Must sink to stop many print statements in qusage() from showing in report
-run_qusage <- function(raw_eset, cohort, sdy, endPoint, gene_set){
-  adj_eset <- if(sdy != "SDY80"){ adjust_eset(raw_eset, cohort) }else{ raw_eset }
+run_qusage <- function(adj_eset, sdy, endPoint, gene_set){
   em <- data.frame(apply(exprs(adj_eset), 2, function(x){ as.numeric(x) } ))
   rownames(em) <- rownames(exprs(adj_eset))
   em$geneSymbol <- fData(adj_eset)[["gene_symbol"]]
   adj_em <- adjust_GE(em)
   labels <- pData(adj_eset)[, endPoint]
-
-  ## remove samples without definition of response - applies to SDY400 and SDY80
-  if(any(is.na(labels))){
-    adj_em <- adj_em[,-which(is.na(labels))]
-    labels <- labels[-which(is.na(labels))]
-  }
 
   sink("tmp")
   result <- qusage(adj_em, labels, "2-0", gene_set)
@@ -56,11 +36,11 @@ run_qusage <- function(raw_eset, cohort, sdy, endPoint, gene_set){
 #' @param cohort Study cohort, young or old
 #' @export
 
-meta_analysis <- function(eset_list, cohort, gene_set){
+meta_analysis <- function(adj_eset_list, cohort, gene_set){
 
   # original manuscript params
   FDR.cutoff <- 0.5
-  pvalue.cutoff <- 0.01
+  pvalue.cutoff <- 0.0105
   endPoint <- "fc_res_max_d30"
 
   result_dfs <- list() # holds output tables for use with markdown
@@ -79,8 +59,7 @@ meta_analysis <- function(eset_list, cohort, gene_set){
 
   for(sdy in discoverySDY){
     idx <- idx + 1
-    quSageObjList[[idx]] <- run_qusage(raw_eset = eset_list[[sdy]],
-                                       cohort = cohort,
+    quSageObjList[[idx]] <- run_qusage(adj_eset = adj_eset_list[[sdy]],
                                        sdy = sdy,
                                        endPoint = endPoint,
                                        gene_set = gene_set)
@@ -128,7 +107,10 @@ meta_analysis <- function(eset_list, cohort, gene_set){
   ##
   #########################################################################################################
 
-  qs.results <- run_qusage(eset_list[[validation.sdy]], cohort, validation.sdy, endPoint, gene_set)
+  qs.results <- run_qusage(adj_eset = adj_eset_list[[validation.sdy]],
+                           sdy = validation.sdy,
+                           endPoint = endPoint,
+                           gene_set = gene_set)
 
   pvalue <- pdf.pVal(qs.results)[index_sig]
   qvalue <- p.adjust(pvalue, method = "BH")

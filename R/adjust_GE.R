@@ -28,12 +28,11 @@ adjust_GE <- function(expr_mx){
   # Remove duplicate rows, rows with NA values, and those with blank / NA gene symbols
   # expr_mx$gs <- fData[,2]  # uncomment after flat files are changed
   expr_mx$gs <- gs
-  expr_mx <- expr_mx[ !duplicated(expr_mx), ] # SDY80 has exact dup rows
-  expr_mx <- expr_mx[ which(!is.na(expr_mx$gs)), ] # SDY212 has NA vals for gene_symbols
-  expr_mx <- expr_mx[ which(expr_mx$gs != "" ), ] # SDY63 / SDY404 have "" and "NA"
-  expr_mx <- expr_mx[ which(expr_mx$gs != "NA" ), ]
-  NA_rows <- which(rowSums(is.na(expr_mx)) > 0)
-  if(length(NA_rows) > 0 ){ expr_mx <- expr_mx[ -NA_rows, ] } # SDY212 has some rows with NA vals in expr
+  a <- !duplicated(expr_mx) # SDY80 has exact dup rows
+  b <- !is.na(expr_mx$gs) # SDY212 has NA vals for gene_symbols
+  c <- !(expr_mx$gs %in% c("","NA")) # SDY63 / SDY404 have "" and "NA"
+  d <- rowSums(is.na(expr_mx)) == 0 # SDY212 has some rows with NA vals in expr
+  expr_mx <- expr_mx[ (a & b & c & d) , ]
 
   # Select and keep only the probe with maximum average expression per gene symbol
   expr_mx <- expr_mx %>%

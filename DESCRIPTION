@@ -4,18 +4,22 @@ Title: Streamlined package to demonstrate HIPC ImmuneSigatures work using Immune
 Version: 0.1.0
 Author: HIPC ImmuneSignatures collaborators
 Maintainer: Evan Henrich <ehenrich@fredhutch.org>
-Description: Package has limited function, for more functionality use "ImmSigPkg".  Install
-  via github with install_github("ehfhcrc/ImmSigPkg")
+Description: Package outputs report with data and figures from HIPC ImmuneSignatures Project
 License: What license is it under?
 Encoding: UTF-8
 LazyData: true
-Depends: ImmuneSpaceR
+Depends: ImmuneSpaceR,
+    data.table
 Imports: Rlabkey,
     dplyr,
     stringr,
     hash,
     Biobase,
-    qusage
+    qusage,
+    pROC,
+    ggplot2,
+    clinfun,
+    MetaIntegrator
 Suggests: knitr, rmarkdown
 VignetteBuilder: knitr
 RoxygenNote: 6.0.1
