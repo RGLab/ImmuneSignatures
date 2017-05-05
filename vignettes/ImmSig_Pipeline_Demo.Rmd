@@ -96,7 +96,8 @@ for(sdy in studies){
   # Remove dup biosamples based on Yale HIPCMetaModuleAnalysis code comments
   if(sdy == "SDY212"){ em <- em[ , -(grep("SUB134307.*", colnames(em))) ] }
   
-  # Swap expr vals based on Stanford SGA code comments
+  # No longer needed: Yale has updated the GE data in GEO to reflect these changes
+  # that were noted by F. Vallania in the origCode/hipc_multiCohortAnalysis_script_paper.R
   if(sdy == "SDY404"){
     em <- swapCols(em, "SUB120473_d0", "SUB120474_d0") # Incorrect Sex
     em <- swapCols(em, "SUB120460_d0", "SUB120485_d28") # Strong evidence
@@ -160,9 +161,18 @@ adjust_eset <- function(sdy, eset_list, cohort){
   hai_var <- grep("^((fc)|(d0))_", varLabels(eset), value = TRUE) 
   oppo <- ifelse( cohort == 'young', "old", "young")
   eset <- eset[, eset$Age.class %in% cohort] # set in adjust_hai
-  phenoData(eset) <- phenoData(eset)[, setdiff(varLabels(eset),
+  
+  # Per notes from F. Vallania @ Stanford, SDY80 uses the adjMFC or fc_res_max_d30 
+  # calculated from a combined group of young and old because it improved the estimation
+  # if(sdy != "SDY80"){
+    phenoData(eset) <- phenoData(eset)[, setdiff(varLabels(eset),
                                                c(hai_var, paste0(oppo, "_", hai_var)))]
-  varLabels(eset) <- gsub(paste0("^", cohort, "_"), '', varLabels(eset))
+    varLabels(eset) <- gsub(paste0("^", cohort, "_"), '', varLabels(eset))
+  # }else{
+  #   hai_var_y <- paste0("young_", hai_var)
+  #   hai_var_o <- paste0("old_", hai_var)
+  #   phenoData(eset) <- phenoData(eset)[ , !(colnames(phenoData(eset)) %in% c(hai_var_o, hai_var_y))]
+  # }
   
   # remove NAs from fc_res_max_d30 pheno and therefore exprs to streamline
   eset <- eset[ , !is.na(eset$fc_res_max_d30) ] 
