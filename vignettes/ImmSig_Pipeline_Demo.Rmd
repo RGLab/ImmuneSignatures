@@ -54,6 +54,9 @@ library(dplyr)
 library(data.table)
 # library(preprocessCore) # biocLite, used in get_GE
 
+# Figure 1 - Age Distribution
+library(RColorBrewer)
+
 # Module / Gene Set Analysis
 library(qusage) # biocLite
 
@@ -201,6 +204,47 @@ yngEsetLs <- esetLsMkr(eset_list, cohort = "young")
 oldEsetLs <- esetLsMkr(eset_list, cohort = "old")
 ```
 
+#### Manuscript Figure 1 - Age Distribution
+```{r age-distribution}
+pd <- ldply(eset_list, function(sdy){ pData(eset_list[[sdy]]) })
+ageCut <- 65
+pd$Age.group <- ifelse(pd$Age >= ageCut, paste("Over", ageCut), paste("Under", ageCut))
+
+p <- ggplot(data = pd, 
+            aes(x = Study, y=Age.group)) + 
+            geom_dotplot(binaxis="y", 
+                         fill="#0838FF", 
+                         binwidth=1, 
+                         stackdir="center", 
+                         aes(y = Age)) + 
+            ggtitle("Age distribution") +                                                                 ylab("Age") + 
+            theme_bw() +
+            theme(plot.background = element_blank(),
+                  panel.grid.major = element_blank(),
+                  panel.grid.minor = element_blank(),
+                  panel.border = element_blank(),
+                  axis.line = element_line(colour = "black"))
+
+plot(p)
+p <- ggplot(data = pd, 
+            aes(x = Study, fill = paste(Gender, Age.group))) + 
+            scale_fill_manual('Groups', values = brewer.pal(4, "Paired")[1:4])
+
+p + 
+  geom_boxplot(aes(y = Age)) + 
+  ggtitle("Age distribution") + 
+  geom_jitter(aes(y = Age), position = position_jitterdodge(), show_guide = FALSE)
+
+p + 
+  geom_bar(stat = 'bin', 
+           position = position_dodge()) + 
+  geom_bar(stat = 'bin', 
+           position = position_dodge(), 
+           colour="black", 
+           show_guide=FALSE) + 
+  ggtitle("Sample size")
+
+```
 ## GENE SET META-ANALYSIS
 ***
 The Gene Set or Module meta analysis based on work by the Yale HIPC collaborators is run first.  The analysis is performed by the `QuSage` package that is found on BioConductor.
@@ -244,7 +288,7 @@ DT::datatable(old_res$val)
 
 ***
 
-#### PARAMETERS:
+#### SIGNIFICANT PATHWAYS SELECTION PARAMETERS:
 - **FDR.cutoff: ** 0.5
 - **pvalue.cutoff: ** 0.0105
 - **endPoint: ** fc_res_max_d30

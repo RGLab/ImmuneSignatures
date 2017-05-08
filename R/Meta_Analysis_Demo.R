@@ -83,9 +83,9 @@ meta_analysis <- function(adj_eset_list, cohort, gene_set){
     pathway.activity <- c(pathway.activity, tmp)
   }
 
-  out_matrix <- cbind(Pvalue = combined.p,
-                      FDR = combined.q,
-                      pathwayActivity = pathway.activity)
+  out_matrix <- cbind(Pvalue = round(combined.p, digits = 3),
+                      FDR = round(combined.q, digits = 3),
+                      pathwayActivity = round(pathway.activity, digits = 3))
 
   rownames(out_matrix) = colnames(combinePDFsResult$path.PDF)
 
@@ -116,7 +116,10 @@ meta_analysis <- function(adj_eset_list, cohort, gene_set){
   qvalue <- p.adjust(pvalue, method = "BH")
   pathway.activity.selected <- qs.results$path.mean[index_sig]
 
-  out_matrix <- cbind(pvalue, qvalue, pathway.activity.selected)
+  out_matrix <- cbind(Pvalue = round(pvalue, digits = 3),
+                      FDR = round(qvalue, digits = 3),
+                      pathwayActivity = round(pathway.activity.selected, digits = 3))
+  
   rownames(out_matrix) <- names(gene_set)[index_sig] # equal to selected.pathways
 
   # cat(paste0("VALIDATION STUDY - SIGNFICANT PATHWAY FIGURES"))

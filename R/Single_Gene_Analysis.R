@@ -262,15 +262,15 @@ metaRes <- function(gems){
 
   # filter meta-analysis results by 10% FDR
   mResFilt <- MetaIntegrator::filterGenes(mRes,
-                                                 isLeaveOneOut           = FALSE,
-                                                 FDRThresh               = 0.10,
-                                                 heterogeneityPvalThresh = 0)
+                                          isLeaveOneOut           = FALSE,
+                                          FDRThresh               = 0.10,
+                                          heterogeneityPvalThresh = 0)
 
   # store up/down regulated genes as results, filtering FDR thresholds as above
   tmp <- mRes$metaAnalysis$pooledResults
   tmp <- tmp[ tmp$effectSizeFDR < 0.1, ]
-  res$upReg <- tmp[ tmp$fisherFDRUp < 0.1, ]
-  res$dnReg <- tmp[ tmp$fisherFDRDown < 0.1, ]
+  res$upReg <- round(tmp[ tmp$fisherFDRUp < 0.1, ], digits = 3)
+  res$dnReg <- round(tmp[ tmp$fisherFDRDown < 0.1, ], digits = 3)
 
   # select set of positive genes to be used from this point on
   res$posGenes <- mResFilt$filterResults$FDR0.1_es0_nStudies1_looaFALSE_hetero0$posGeneNames
