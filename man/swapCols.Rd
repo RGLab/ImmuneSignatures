@@ -2,7 +2,7 @@
 % Please edit documentation in R/Single_Gene_Analysis.R
 \name{swapCols}
 \alias{swapCols}
-\title{helper function SDY404 column swap}
+\title{Swap columns by name}
 \usage{
 swapCols(em, sub1, sub2)
 }
@@ -14,5 +14,5 @@ swapCols(em, sub1, sub2)
 \item{sub2}{subject 2}
 }
 \description{
-helper function SDY404 column swap
+Swap columns by name
 }

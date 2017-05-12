@@ -2,7 +2,9 @@
 
 export(adjust_GE)
 export(adjust_hai)
+export(arithMean_comb_validate)
 export(getGE)
+export(makeGEM)
 export(meta_analysis)
 export(singleGeneAnalysis)
 export(swapCols)

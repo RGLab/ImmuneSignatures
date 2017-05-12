@@ -38,43 +38,7 @@
 #   return(ens_table);
 # }
 
-# Convert eset into appropriate list type for MetaIntegrator --------------
-makeGEM <- function(sdy, eset_list, ens_table, valProc){
-  eset <- eset_list[[sdy]]
-  if( !(sdy %in% c("SDY67", "SDY80")) | valProc == TRUE ){
-    eset <- eset[ , eset$fc_res_max_d30 != 1 ] # rm moderates
-  }
 
-  #create key vector
-  keys        <- fData(eset)$gene_symbol
-  names(keys) <- rownames(fData(eset))
-
-  #remove probes that do not map back to genes
-  keys[ !(keys %in% ens_table$display_label) ] <- NA
-
-  # create class vector and change high-responders to "1" from "2" for MetaIntegrator
-  # Able to do this because all moderate responders have already been removed
-  endPoint <- pData(eset)[["fc_res_max_d30"]]
-  endPoint <- if( !(sdy %in% c("SDY67","SDY80")) ){ gsub(2, 1, endPoint) }else{ endPoint }
-  classV <- as.numeric(endPoint)
-  names(classV) <- row.names(pData(eset))
-
-  # Ensure that exprs is numeric
-  em <- exprs(eset)
-  class(em) <- "numeric"
-
-  #create list
-  gem <- list(expr          = em,
-              pheno         = pData(eset),
-              name          = sdy,
-              formattedName = sdy,
-              keys          = keys,
-              class         = classV,
-              comment       = "HIPC gem object created from SDY GEM matrix + demographics file")
-
-  #return gem object
-  return(gem)
-}
 
 # Performs any pairwise ROC comparison in one dataset -----------------------------
 # input-> data.frame containint class and score as columns
@@ -109,6 +73,7 @@ multi_roc_cmp <- function(input_df,
                 function(i) test_function(input_pairs[i,]))
 }
 
+# Gets Stats -----------------------------------------------------------------------
 multi_stat_cmp <- function(input_df,test.type = 't.test'){
   #Get input classes and form pairs (combinations of n elements taken 2 at a time)
   input_classes <- unique(input_df$class);
@@ -142,34 +107,6 @@ multi_stat_cmp <- function(input_df,test.type = 't.test'){
                     Var2   = input_pairs[,2],
                     pvalue = res,
                     bonf   = res*nrow(input_pairs)));
-}
-
-# computes geometric mean in real space [arithmetic mean in log space] ---------------
-arithMean_comb_validate <- function(GEM,
-                                    genes_p = NULL,
-                                    genes_n = NULL,
-                                    scale   = 1){
-
-  #compute score with mean
-  score <- rep(0, length(GEM$class) )
-  if( !is.null(genes_p) ){
-    currGenes_p <- getSampleLevelGeneData(GEM,genes_p)
-    score <- score + colMeans(currGenes_p, na.rm=T)
-  }
-  if( !is.null(genes_n) ){
-    currGenes_n <- getSampleLevelGeneData(GEM,genes_n)
-    score <- score - colMeans(currGenes_n, na.rm=T)
-  }
-  if( !is.null(genes_p) || !is.null(genes_n) ){
-    if( scale == 1 ){
-      score <- scale(score)[,1];
-    }
-  }
-
-  #return data.frame
-  return(data.frame(class = GEM$class,
-                    score = score,
-                    name  = GEM$name));
 }
 
 # Creates violin plot using GGPLOT2 -------------------------------------------------
@@ -206,7 +143,7 @@ violinPlotter <- function(inputDF,
 
 }
 
-# This function computes ROC curves from an input list of pROC objects --------------
+# Computes ROC curves from an input list of pROC objects --------------------------
 rocGGMultiRoc <- function(validation_roc_list,
                           rocStyle      = 1,
                           rocSize       = 1.4,
@@ -282,8 +219,84 @@ metaRes <- function(gems){
 #######################################################################################
 ###                       EXPORTED FUNCTIONS                                        ###
 #######################################################################################
-#' helper function SDY404 column swap
-#' 
+
+# Convert eset into appropriate list type for MetaIntegrator --------------------------
+#' Converts expressionSet into list for MetaIntegrator analysis
+#' @param eset expressionSet object
+#' @param rmMods Remove moderates, takes boolean
+#' @param ens_table ensemble table of same name preloaded with pkg
+#' @export
+makeGEM <- function(eset, rmMods, ens_table){
+  
+  # rm moderates
+  if( rmMods ){ eset <- eset[ , eset$fc_res_max_d30 != 1 ] }
+  
+  #create key vector
+  keys        <- fData(eset)$gene_symbol
+  names(keys) <- rownames(fData(eset))
+  
+  #remove probes that do not map back to genes
+  keys[ !(keys %in% ens_table$display_label) ] <- NA
+  
+  # create class vector and change high-responders to "1" from "2" for MetaIntegrator
+  # Able to do this because all moderate responders have already been removed
+  endPoint <- pData(eset)[["fc_res_max_d30"]]
+  if( rmMods ){ endPoint <- gsub(2, 1, endPoint) }
+  classV <- as.numeric(endPoint)
+  names(classV) <- row.names(pData(eset))
+  
+  # Ensure that exprs is numeric
+  em <- exprs(eset)
+  class(em) <- "numeric"
+  
+  #create list
+  gem <- list(expr          = em,
+              pheno         = pData(eset),
+              name          = sdy,
+              formattedName = sdy,
+              keys          = keys,
+              class         = classV,
+              comment       = "created from SDY GEM matrix + demographics file")
+  
+  return(gem)
+}
+
+# Need to export for use with SDY80 all timepoint plot --------------------------------
+#' Generates Single Gene Analysis Scores
+#' @param GEM expression matrix
+#' @param genes_p up-regulated genes
+#' @param genes_n down-regulated genes
+#' @param scale unknown
+#' @export
+arithMean_comb_validate <- function(GEM,
+                                    genes_p = NULL,
+                                    genes_n = NULL,
+                                    scale   = 1){
+  
+  #compute score with mean
+  score <- rep(0, length(GEM$class) )
+  if( !is.null(genes_p) ){
+    currGenes_p <- getSampleLevelGeneData(GEM,genes_p)
+    score <- score + colMeans(currGenes_p, na.rm=T)
+  }
+  if( !is.null(genes_n) ){
+    currGenes_n <- getSampleLevelGeneData(GEM,genes_n)
+    score <- score - colMeans(currGenes_n, na.rm=T)
+  }
+  if( !is.null(genes_p) || !is.null(genes_n) ){
+    if( scale == 1 ){
+      score <- scale(score)[,1];
+    }
+  }
+  
+  #return data.frame
+  return(data.frame(class = GEM$class,
+                    score = score,
+                    name  = GEM$name));
+}
+
+# helper function SDY404 column swap -----------------------------------------
+#' Swap columns by name
 #' @param em expression matrix with colnames including sub1 and sub2
 #' @param sub1 subject 1
 #' @param sub2 subject 2
@@ -308,16 +321,16 @@ singleGeneAnalysis <- function(adjEsetList, cohort){
 
   # Create holder list for results
   finalRes <- list("disc","val")
-
+  
   # reformat esets for use in MetaIntegrator functions
   # Need to take out moderate responders here for discovery studies,
   # because runMetaAnalysis only allows 1 or 0 in class aka endPoint,
   # but leave for validation studies for plotting work.
   gems <- lapply(names(adjEsetList), function(sdy){
-              makeGEM(sdy = sdy,
-                      eset_list = adjEsetList,
-                      ens_table = ens_table,
-                      valProc = FALSE)
+              rmMods <- !(sdy %in% c("SDY67", "SDY80"))
+              makeGEM(eset = adjEsetList[[sdy]],
+                      rmMods = rmMods,
+                      ens_table = ens_table)
   })
   names(gems) <- names(adjEsetList)
 

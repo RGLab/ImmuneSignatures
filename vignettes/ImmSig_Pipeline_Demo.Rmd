@@ -16,30 +16,24 @@ output: rmarkdown::html_document
 
 ***
 
-## GENERAL NOTES:
-This markdown file outputs the results of the HIPC ImmuneSignatures Project using the original parameters and
-streamlined code from the published manuscript but run with data coming directly from ImmuneSpace. In order 
-to save time, the gene expression matrices are pre-loaded as data within the package.  The code to generate 
-these expression matrices from ImmuneSpace / GEO can be found in the "get_GE.R" script within the package.
-There are two cases where data from ImmuneSpace could not be used: SDY80 (hai) and SDY400 (ge).  
+## OVERVIEW
+This markdown file outputs the results of the HIPC ImmuneSignatures Project using the original parameters and data coming directly from <https://www.immunespace.org> unless noted. This markdown uses heavily refactored code to improve efficiency.  However, all original code developed for the production of the manuscript is included in the /OrigCode folder within the package for reference.  This can be viewed at <https://github.com/ehfhcrc/ImmSig2>. 
+
+#### Data Notes:
+To save time, the gene expression matrices are pre-loaded as data within the package.  The code to generate 
+these expression matrices from ImmuneSpace / GEO can be found in the `R/get_GE.R` script within the package.
+There are also two cases where data from ImmuneSpace could not be used: SDY80 (hai) and SDY400 (ge).  
 
 The SDY80 hai data available on ImmuneSpace is not incorporated into the analysis because it does not include 
 subjects without gene expression data.  Although subjects without GE data are filtered out later, they must 
 be included in the adjust_hai.R script in order to achieve the same results for the "endPoint" variable 
 ("fc_res_maxd30").  The original raw HAI data came from Yuri Kotliarov at NIH and is included within the package. 
+The SDY400 gene expression data used in the package comes from the authors at Yale University because the "series.txt" file on GEO has different probe-to-gene symbol mapping that cannot be retroactively changed, while the "non-normalized.txt" version on GEO has experiment specific subject ID mappings that were not able to be correctly given ImmuneSpace subject ids at the time of this report's development.
 
-The SDY400 gene expression data used in the package comes from the authors at Yale University because the "series.txt"
-file on GEO has different probe-to-gene symbol mapping that cannot be retroactively changed, while the
-"non-normalized.txt" version on GEO has experiment specific subject ID mappings that were not able to be correctly
-given ImmuneSpace subject ids at the time of this report's development.
+Finally, the results for the "old" cohort using SDY67 data are slightly different ( <0.5% Relative Error ).  This is due to rounding that occurs from a transformation from one kind of data structure to another.
 
-Finally, the results for the "old" cohort using SDY67 data are slightly different ( <0.5% Relative Error ).  This is 
-is due to rounding that occurs from a transformation from one kind of data structure to another.
-
-## PACKAGE NOTES:
+#### Package Notes:
 In order to run this vignette locally, you would first need to install the following Bioconductor packages by hand: Biobase, qusage, and MetaIntegrator. Then install `ImmSig2` via `devtools::install_github("ehfhcrc/ImmSig2", build_vignettes=T)` and view the vignette with `vignette("ImmSig_Pipeline_demo", package="ImmSig2")`.  
-
-All original code developed for the production of the manuscript is also included in the /OrigCode folder within the package.  This can be viewed at <https://github.com/ehfhcrc/ImmSig2>. 
 
 
 ```{r set-options, include=FALSE}
@@ -54,8 +48,11 @@ library(dplyr)
 library(data.table)
 # library(preprocessCore) # biocLite, used in get_GE
 
-# Figure 1 - Age Distribution
+# Figure 2 - Age Distribution
 library(RColorBrewer)
+
+# Figure 3 - AdjMFC demo
+library(gridExtra)
 
 # Module / Gene Set Analysis
 library(qusage) # biocLite
@@ -80,25 +77,81 @@ knitr::opts_chunk$set(echo=FALSE,
                fig.align = "center")
 ```
 
-#### Generating and Pre-Processing expressionSet Objects
+## STEP 1: DATA EXTRACTION AND CLEANING
 
-Construct expressionSet objects from ImmuneSpace data and put into a list for use in the analysis pipeline.
+#### Setup for expressionSet object creation
+The expressionSet objects used in the Meta-Analysis functions need to have gene expression data and hemaglutenin inhibition (hai) data that have corresponding subject names to map one column of expression data to one row of hai information.  This helper function ensures this is the case and allows for the selection of day 0 or baseline data only with the `d0` argument.
 
-```{r prepare-esets, echo=TRUE}
+```{r eset-helper-method, echo=TRUE}
+prepEset <- function(em, adjHai, d0 = TRUE){
+  
+  # get geneSyms now because prep work requires them to be absent
+  new_fData <- data.frame(gene_symbol = em$geneSymbol, stringsAsFactors = F)
+  rownames(new_fData) <- rownames(em)
+  
+  # rm GeneSyms and unwanted timepoints
+  em <- if( d0 ){ em[ , grep("d0", colnames(em)) ] }else{ em[, !(colnames(em) == "geneSymbol")] }
+  
+  # determine which em subs have hai data and subset
+  haiSubs <- sapply(colnames(em), FUN = function(name){
+    sub <- strsplit(name, split = "_", fixed = T)[[1]][1]
+    return( sub %in% adjHai$subject )
+  })
+  
+  em <- em[, haiSubs ]
+  
+  # if all timepoints, create new hai that has one row per timepoint
+  if( !d0 ){
+    adjHai <- rbindlist(lapply(colnames(em), FUN = function(name){
+      tmp <- strsplit(name, split = "_", fixed = T)[[1]]
+      row <- adjHai[ adjHai$subject == tmp[1], ]
+      day <- gsub("neg", "-", tmp[2])
+      row$timepoint.day <- gsub("d", "", day)
+      row$subject <- name
+      return(row)
+    }))
+  }
+  
+  # Get Subjects from em and ensure hai / em contain same subs in same order
+  emSubs <- if( d0 ){
+              str_match(colnames(em), "(((SUB)|(sub))_?[0-9]+)(\\.[0-9])?_(.*)")[, 2L]
+            } else {
+              colnames(em)
+            }
+  
+  adjHai <- adjHai[ adjHai$subject %in% emSubs, ]
+  adjHai <- adjHai[ order(match(adjHai$subject, emSubs)), ]
+  rownames(adjHai) <- colnames(em)
+  
+  # Make eset
+  eset <- ExpressionSet(assayData = as.matrix(em),
+                      featureData = AnnotatedDataFrame(new_fData))
+  pData(eset) <- droplevels(adjHai)
+  
+  return(eset)
+}
+```
+
+#### expressionSet Construction
+To extract gene expression and hai data from ImmuneSpace, an ImmuneSpace-Connection class object, `con` is created and then data is pulled with a `con$getDataset()` call.  Here, the expression data is preloaded but has been pulled in the manner described above as seen in the `R/get_GE.R` script.  To see how the hai data is adjusted to define "responders" from "non-responders", you can look at the `R/adjust_hai.R` script that is based on the work of Yuri Kotliarov from NIH.
+
+```{r construct-esets, echo=TRUE}
 studies <- c("SDY212","SDY63","SDY404","SDY400","SDY67","SDY80")
-eset_list <- list()
+eset_d0 <- list()
+sdy80all <- "" # need eset with all time points for some figures
 
 for(sdy in studies){
   if(sdy == "SDY400"){
     # SDY400:
-    # Using original table because GEO series matrix produces different results in terms of gene symbols
-    # incorporated into qusage analysis, perhaps due to different normalization method(?), and GEO
-    # non-normalized.txt does not have sample names that can be mapped with available information.
+    # Using original table because GEO series matrix produces different results 
+    # in terms of gene symbols incorporated into qusage analysis, perhaps due 
+    # to different normalization method(?), and GEO non-normalized.txt does 
+    # not have sample names that can be mapped with available information.
     # All original tables come from HIPC Google Drive.
     em <- get(paste0(tolower(sdy), "_exprMxOrig"))
   } else {
-    # See comments in get_GE.R for methodology of generating expression matrices. These matrices
-    # are created using online, public sources (e.g. GEO or ImmuneSpace).
+    # See comments in get_GE.R for methodology of generating expression matrices. 
+    # These matrices are created using online, public sources (e.g. GEO or ImmuneSpace).
     em <- getGE(sdy) 
   }
   
@@ -111,68 +164,246 @@ for(sdy in studies){
     em <- swapCols(em, "SUB120460_d0", "SUB120485_d28") # Strong evidence
   }
 
-  new_fData <- data.frame(gene_symbol = em$geneSymbol, stringsAsFactors = F)
-  rownames(new_fData) <- rownames(em)
-  eset <- ExpressionSet(assayData = as.matrix(em),
-                        featureData = AnnotatedDataFrame(new_fData))
-
-  # Parse Subject IDs and Limit expression data to baseline (d0) only
-  eset <- eset[ , grep("d0", sampleNames(eset)) ]
-
-  # Get baseline eset Subjects
-  factored_ids <- str_match(sampleNames(eset), "(((SUB)|(sub))_?[0-9]+)(\\.[0-9])?_(.*)")
-  eset_subs <- factored_ids[, 2L]
-
-  # Get raw HAI data from Immunespace where feasible and adjust according to Yuri Kotliarov code.
+  # Get raw HAI data from Immunespace and adjust according to Yuri Kotliarov code.
   # NOTE: SDY80 raw data in ImmuneSpace differs, therefore using preloaded.
   # labkey.url.path <- paste0("/Studies/", sdy, "/") # for IS site only
   con <- CreateConnection(sdy)
-  raw_hai <- if(sdy != "SDY80"){ con$getDataset("hai") }else{ SDY80_rawtiterdata_v2 }
-  adj_hai <- adjust_hai(sdy, raw_hai)
+  rawHai <- if(sdy != "SDY80"){ con$getDataset("hai") }else{ SDY80_rawtiterdata_v2 }
+  adjHai <- adjust_hai(sdy, rawHai)
 
-  # Age needed for SDY80 to remove subjects over 36 years old
-  if(sdy == "SDY80"){
-    demo <- con$getDataset("demographics")
-    adj_hai$Age <- sapply(adj_hai$subject, FUN = function(x){
-      trg <- demo[ which(demo$participant_id == paste0(x, ".80"))]
-      return(trg$age_reported)
-    })
-    adj_hai <- adj_hai[ which(adj_hai$Age < 36), ]
-  }
-
-  # Ensure HAI and eset contain same subjects in same order, then push to pData
-  eset <- eset[ , eset_subs %in% adj_hai$subject ]
-  adj_hai <- adj_hai[ adj_hai$subject %in% eset_subs, ]
-  adj_hai <- adj_hai[ order(match(adj_hai$subject, eset_subs)), ]
-  rownames(adj_hai) <- sampleNames(eset)
-  pData(eset) <- droplevels(adj_hai)
+  # Age needed for figure 2 and SDY80 filtering
+  dotNum <- gsub("SDY", ".", sdy, fixed = T)
+  demo <- con$getDataset("demographics")
+  adjHai$Age <- sapply(adjHai$subject, FUN = function( sub ){
+    trg <- demo[ which(demo$participant_id == paste0(sub, dotNum))]
+    return( trg$age_reported )
+  })
   
-  # push to holder
-  eset_list[[sdy]] <- eset
+  if(sdy == "SDY80"){ adjHai <- adjHai[ which(adjHai$Age < 36), ] }
+  
+  # Need study id for figure 2
+  adjHai$study <- sdy
+  
+  # Prep and push to holders
+  eset_d0[[sdy]] <- prepEset(em, adjHai, d0 = T)
+  if( sdy == "SDY80" ){ sdy80all <- prepEset(em, adjHai, d0 = F) } 
+}
+```
+
+#### Age Distribution - Figure 2
+Before filtering the expressionSets into "young" (<= 35 years old) and "old" (> 60 years old) cohorts, we create the age distribution figure form the manuscript using the `con$getDataset()` method described before to pull demographic information for all participants.  A second table shows the number of subjects available for each study in ImmuneSpace.  These numbers differ slightly from the manuscript where some filtering was done prior to the calculation of available subjects - e.g. duplicate biosamples removed in SDY212.
+
+```{r age-distribution}
+pd <- rbindlist(lapply(studies, function(sdy) {
+                        con <- CreateConnection(sdy)
+                        demo <- con$getDataset("demographics")
+                        filt <- data.frame(Age = demo$age_reported, 
+                                           Study = sdy)
+                       })
+                )
+
+p <- ggplot(data = pd, 
+            aes(x = Study))                                       + 
+            geom_dotplot(binaxis = "y", 
+                         fill = "#0838FF", 
+                         binwidth = 1, 
+                         stackdir = "center", 
+                         aes(y = Age))                            + 
+            ylab("Age (years)")                                   +
+            xlab("Study ID")                                      +
+            theme_bw()                                            +
+            geom_hline(yintercept = c(35,60), col="red", lty = 2) +
+            theme(plot.background = element_blank(),
+                  panel.grid.major = element_blank(),
+                  panel.grid.minor = element_blank(),
+                  panel.border = element_blank(),
+                  axis.line = element_line(colour = "black"))
+print(p)
+
+colNms <- c("2008-2009", "2009-2010", "2010-2011", "2011-2012", "2012-2013")
+subDf <- matrix(data = "", nrow = 6, ncol = 5, dimnames = list(studies, colNms) )
+subDf["SDY212", "2008-2009"] <- nrow( pd[pd$Study == "SDY212", ] )
+subDf["SDY63", "2010-2011"] <- nrow( pd[pd$Study == "SDY63", ] )
+subDf["SDY404", "2011-2012"] <- nrow( pd[pd$Study == "SDY404", ] )
+subDf["SDY400", "2012-2013"] <- nrow( pd[pd$Study == "SDY400", ] )
+subDf["SDY80", "2009-2010"] <- nrow( pd[pd$Study == "SDY80", ] )
+subDf["SDY67", "2010-2011"] <- nrow( pd[pd$Study == "SDY67", ] )
+
+subDf <- data.frame(subDf, stringsAsFactors = F)
+colnames(subDf) <- colNms
+print(subDf)
+```
+
+#### Adjusting HAI - Figure 3
+To provide a more detailed understanding how the hai data adjustment affects the distribution of responders and non-responders, we provide the example of SDY404.  Note that the outlier in Figure 3A. with an extremely high d0 titer is removed from the data before decorrelation.
+```{r adjMFC-demo}
+# Get raw data from ImmuneSpace and select only young subjects
+con <- CreateConnection("SDY404")
+rawHai <- con$getDataset("hai")
+adjHai <- adjust_hai("SDY404", rawHai)
+pd <- adjHai[ adjHai$Age.class == "young", ]
+
+# bins were created manually
+bins <- c(0.25, 1, 5)
+
+# plot BEFORE decorrelation
+cc <- cor.test(pd$young_fc_norm_max_ivt, pd$young_d0_norm_max, method = "spearman", exact = F)
+
+xrng = range(pd$young_d0_norm_max, na.rm=T)
+yrng = range(pd$young_fc_norm_max_ivt, na.rm=T)
+xrng[1] = xrng[1] + diff(xrng)/2
+yrng[1] = yrng[1] + diff(yrng)/3*2
+
+# Create df of group-by-bin statistics
+pd.bin <- pd %>%
+    mutate(bin = cut(young_d0_norm_max, 
+                     breaks = c(-Inf, bins, Inf), 
+                     labels = 1:( length(bins) + 1) 
+                     ) 
+           ) %>%
+    group_by(bin) %>%
+    summarise(n = n(), 
+              fc_median = median(young_fc_norm_max_ivt, na.rm=T),
+              cor = ifelse( n > 2, 
+                            cor(young_d0_norm_max, 
+                                young_fc_norm_max_ivt, 
+                                method="spearman", 
+                                use="pairwise.complete.obs"), 
+                            NA),
+              cor.p = ifelse( n > 2, 
+                              cor.test(young_d0_norm_max, 
+                                       young_fc_norm_max_ivt, 
+                                       method="spearman", 
+                                       exact = F)$p.value, 
+                              NA)) %>%
+    ungroup()
+
+pd.bin.show <- pd.bin[, colnames(pd.bin) %in% c("bin", "n", "cor.p")]
+colnames(pd.bin.show)[3] <- "p-value"
+pd.bin.show <- pd.bin.show[1:3, ]
+
+# Custom function developed by Yuri Kotliarov
+plot_size_bubbles <- function(x,y) {
+  dd = data.frame(x,y) %>%
+    group_by(x,y) %>%
+    summarise(n=n()) %>%
+    ungroup()
+  ggplot(dd, aes(x,y)) + geom_point(aes(size=n))
 }
 
+beforePlot <- plot_size_bubbles(pd$young_d0_norm_max, pd$young_fc_norm_max_ivt)        +
+                      scale_size_area(max_size = 8)               + 
+                      xlab("Day 0 Titer Score")                   +
+                      ylab("") +
+                      xlim(-0.5,7.5)                              +
+                      ylim(-2.75,2.75)                              +
+                      theme_bw()                                  + 
+                      theme(legend.key = element_blank())         +
+                      geom_vline(xintercept = bins, col='red', lty=1)  +
+                      annotation_custom(tableGrob(format(pd.bin.show, digits = 2), 
+                                                  rows = NULL), 
+                                        xmin = xrng[1], 
+                                        xmax = xrng[2], 
+                                        ymin = yrng[1], 
+                                        ymax = yrng[2])
+
+breaks <- seq(-1.25, 2.25, 0.5)
+tmp <- hist(pd$young_fc_norm_max_ivt, breaks = breaks)
+negDat <- data.frame(counts = -(tmp$counts), mids = tmp$mids)
+negDatEd <- rbind(negDat, data.frame(counts = c(0,0,0,0),
+                                     mids = c(-2.5,-2.0,-1.5, 2.5)))
+beforeHist <- ggplot(negDatEd, aes(mids,counts)) + 
+              geom_col() +
+              coord_flip() +
+              xlab("MFC Titer Score")                     +
+              theme(axis.title.y = element_blank(),
+                    axis.text.y = element_blank(),
+                    axis.ticks.y = element_blank())
+
+print("BEFORE DECORRELATION - 3A")
+print(sprintf("subjects = %d, Spearman rho = %.2f, p-value = %.2g",
+                                      nrow(pd),
+                                      cc$estimate,
+                                      cc$p.value))
+print(plot_grid(beforeHist, 
+          beforePlot, 
+          ncol = 2, 
+          nrow = 1,
+          align="h",
+          rel_widths = c(0.25,1)))
+
+# After Decor
+pd <- pd[ !(pd$subject == "SUB120471"), ] # remove outlier
+
+cc <- cor.test(pd$young_fc_res_max, pd$young_d0_norm_max, method = "spearman", exact = F)
+
+afterPlot <- plot_size_bubbles(pd$young_d0_norm_max, pd$young_fc_res_max)        +
+                      scale_size_area(max_size = 8)               + 
+                      xlab("Day 0 Titer Score")                   +
+                      ylab("") +
+                      xlim(-0.5, 7.5)                              +
+                      ylim(-2.75, 2.75)                              +
+                      theme_bw()                                  + 
+                      theme(legend.key = element_blank())        +
+                      geom_hline(yintercept = quantile(pd$young_fc_res_max, c(0.3, 0.7), na.rm=T),
+                                 col="blue", lty = 2)        +
+                      geom_vline(xintercept = bins, 
+                                 col='red', lty = 1)         
+                      
+
+breaks <- seq(-2.25, 1.75, 0.5)
+tmp <- hist(pd$young_fc_res_max, breaks = breaks)
+negDat <- data.frame(counts = -(tmp$counts), mids = tmp$mids)
+negDatEd <- rbind(negDat, data.frame(counts = c(0, 0, 0),
+                                     mids = c(-2.5, 2.0, 2.5)))
+afterHist <- ggplot(negDatEd, aes(mids,counts)) + 
+              geom_col() +
+              coord_flip()  +
+              xlab("MFC Titer Score")                     +
+              theme(axis.title.y = element_blank(),
+                    axis.text.y = element_blank(),
+                    axis.ticks.y = element_blank())
+
+print("AFTER DECORRELATION - 3B")
+print(sprintf("subjects = %d, Spearman rho = %.2f, p-value = %.2g",
+                                      nrow(pd),
+                                      cc$estimate,
+                                      cc$p.value))
+print(plot_grid(afterHist, 
+          afterPlot, 
+          ncol = 2, 
+          nrow = 1,
+          align="h",
+          rel_widths = c(0.25,1)))
+```
+
+#### GeneSet Module Preparation
+The gene set modules come from the HIPC collaborators and are found within the package, but must be formatted for use within the meta-analyses.
+```{r prepare-gene-set-module-list, echo=TRUE}
 # Prep GeneSetDB per original code.  Can also use GSEAbase package.
-gene_set <- strsplit(geneSetDB, "\t")            ## convert from vector of strings to a list
-names(gene_set) <- sapply(gene_set,"[", 1)       ## move the names column as the names of the list
+gene_set <- strsplit(geneSetDB, "\t")       ## convert from vector of strings to a list
+names(gene_set) <- sapply(gene_set,"[", 1)  ## move the names column as the names of the list
 links <- sapply(gene_set,"[", 2)
-gene_set <- lapply(gene_set, "[",-1:-2)         ## remove name and description columns
+gene_set <- lapply(gene_set, "[",-1:-2)     ## remove name and description columns
 gene_set <- lapply(gene_set, function(x){ x[ which( x != "") ] })      ## remove empty strings
 ```
 
-The list of expressionSet objects are then adjusted for each cohort to select the correct gene expression and hai information by subsetting the subjects.  SDY80 is treated differently in terms of the hai data and noted below.
+#### Adjusting expressionSets by age cohort
+Before use in the meta-analyses pipelines, the list of expressionSet objects are adjusted for each cohort to select the correct gene expression and hai information by subsetting the subjects by age.  SDY80 is treated differently in terms of the hai data and noted below.
 
 ```{r adjust-esets-by-cohort, echo=TRUE}
 adjust_eset <- function(sdy, eset_list, cohort){
   eset <- eset_list[[sdy]]
-  storageMode(assayData(eset)) <- "list" ## change from "lockedEnvironment" to modify assayData
+  storageMode(assayData(eset)) <- "list" 
   
-  ## Select correct PhenoData in terms of young or old fc_res_max_d30 and delete rest
+  # Select correct PhenoData in terms of young or old fc_res_max_d30 and delete rest
   hai_var <- grep("^((fc)|(d0))_", varLabels(eset), value = TRUE) 
   oppo <- ifelse( cohort == 'young', "old", "young")
   eset <- eset[, eset$Age.class %in% cohort] # set in adjust_hai
   
-  # Per notes from F. Vallania @ Stanford and H. Meng @ Yale, SDY80 uses the adjMFC or fc_res_max_d30 
-  # calculated from a combined group of young and slightly older subjects because it improved the estimation
+  # Per notes from F. Vallania @ Stanford and H. Meng @ Yale:
+  # SDY80 uses the adjMFC or fc_res_max_d30 calculated from a combined 
+  # group of young and slightly older subjects because it improved the estimation
   if(sdy != "SDY80"){
     phenoData(eset) <- phenoData(eset)[, setdiff(varLabels(eset),
                                                c(hai_var, paste0(oppo, "_", hai_var)))]
@@ -200,58 +431,17 @@ esetLsMkr <- function(eset_list, cohort){
   return(adjEsetList)
 }
 
-yngEsetLs <- esetLsMkr(eset_list, cohort = "young")
-oldEsetLs <- esetLsMkr(eset_list, cohort = "old")
+yngEsets <- esetLsMkr(eset_d0, cohort = "young")
+oldEsets <- esetLsMkr(eset_d0, cohort = "old")
 ```
 
-#### Manuscript Figure 1 - Age Distribution
-```{r age-distribution}
-pd <- ldply(eset_list, function(sdy){ pData(eset_list[[sdy]]) })
-ageCut <- 65
-pd$Age.group <- ifelse(pd$Age >= ageCut, paste("Over", ageCut), paste("Under", ageCut))
-
-p <- ggplot(data = pd, 
-            aes(x = Study, y=Age.group)) + 
-            geom_dotplot(binaxis="y", 
-                         fill="#0838FF", 
-                         binwidth=1, 
-                         stackdir="center", 
-                         aes(y = Age)) + 
-            ggtitle("Age distribution") +                                                                 ylab("Age") + 
-            theme_bw() +
-            theme(plot.background = element_blank(),
-                  panel.grid.major = element_blank(),
-                  panel.grid.minor = element_blank(),
-                  panel.border = element_blank(),
-                  axis.line = element_line(colour = "black"))
-
-plot(p)
-p <- ggplot(data = pd, 
-            aes(x = Study, fill = paste(Gender, Age.group))) + 
-            scale_fill_manual('Groups', values = brewer.pal(4, "Paired")[1:4])
-
-p + 
-  geom_boxplot(aes(y = Age)) + 
-  ggtitle("Age distribution") + 
-  geom_jitter(aes(y = Age), position = position_jitterdodge(), show_guide = FALSE)
-
-p + 
-  geom_bar(stat = 'bin', 
-           position = position_dodge()) + 
-  geom_bar(stat = 'bin', 
-           position = position_dodge(), 
-           colour="black", 
-           show_guide=FALSE) + 
-  ggtitle("Sample size")
-
-```
-## GENE SET META-ANALYSIS
 ***
+## STEP 2: GENE SET META-ANALYSIS
 The Gene Set or Module meta analysis based on work by the Yale HIPC collaborators is run first.  The analysis is performed by the `QuSage` package that is found on BioConductor.
 
-### YOUNG COHORT RESULTS
+### YOUNG COHORT
 ```{r meta-analysis-young, include=TRUE, results="markup"}
-yng_res <- meta_analysis(adj_eset_list = yngEsetLs,
+yng_res <- meta_analysis(adj_eset_list = yngEsets,
                          cohort = "young",
                          gene_set = gene_set)
 ```
@@ -261,17 +451,14 @@ yng_res <- meta_analysis(adj_eset_list = yngEsetLs,
 DT::datatable(yng_res$dsc)
 ```
 
-#### Validation Study Significant Pathways Data  
+#### Validation Study Significant Pathways Data  (Table 1 from Manuscript)
 ``` {r include=TRUE}
 DT::datatable(yng_res$val)
 ```
 
-***
-
-### OLD COHORT RESULTS
-
+### OLD COHORT
 ```{r meta-analysis-old, include=TRUE, results="markup"}
-old_res <- meta_analysis(adj_eset_list = oldEsetLs,
+old_res <- meta_analysis(adj_eset_list = oldEsets,
                          cohort = "old",
                          gene_set = gene_set)
 ```
@@ -286,17 +473,139 @@ DT::datatable(old_res$dsc)
 DT::datatable(old_res$val)
 ```
 
-***
-
-#### SIGNIFICANT PATHWAYS SELECTION PARAMETERS:
+#### Signficant Pathways Selection Parameters:
 - **FDR.cutoff: ** 0.5
 - **pvalue.cutoff: ** 0.0105
 - **endPoint: ** fc_res_max_d30
 - **geneSetDB: ** BTM_for_GSEA_20131008.gmt
 
-***
+#### BCR Signaling (M54) - Figure 7
+Since figure 7 is based on Yale's qusage analysis, it is presented here.  
+```{r bcr-analysis}
+# Prep and Helper Methods----------------------------------------------------
+discoverySDY = c('SDY212','SDY63','SDY404','SDY400')
+loc <- which(colnames(yng_res$combinedPDF$path.PDF) == "BCR signaling (M54)")
 
-## SINGLE GENE ANALYSIS
+# These are deconstructed versions of qusage:::plotDensityCurves() to enable use of ggplot
+# without plotRecord for creating figures.
+xCoordCalc <- function(QSarray, loc, sif){
+  seq(-1, 1 , length.out = QSarray$n.points) * 
+    QSarray$ranges[loc] * 
+    sif + 
+    QSarray$path.mean[loc]
+}
+
+yCoordCalc <- function(QSarray, loc, scaleFactor){
+  QSarray$path.PDF[,loc] / scaleFactor[loc]
+}
+
+makeCoordDf <- function(QSarray, meta, loc, scalefactor){
+  if(meta == FALSE){
+    sif <- sqrt(QSarray$vif[loc])
+    if(is.na(sif)){ sif <- 1 }
+  }else{
+    sif <- 1
+  }
+  x <- xCoordCalc(QSarray, loc, sif)
+  y <- yCoordCalc(QSarray, loc, scaleFactor)
+  df <- data.frame(x = x, y = y)
+}
+
+# A. discovery plot----------------------------------------------------
+discSF <- qusage:::pdfScaleFactor(yng_res$combinedPDF)
+
+# Get individual study coordinates
+coordDfs <- lapply(yng_res$combinedPDF$QSlist, makeCoordDf, FALSE, loc, discSF)
+
+# Get meta study coordinates
+coordDfs[[5]] <- makeCoordDf(yng_res$combinedPDF, TRUE, loc, discSF)  
+names(coordDfs) <- c(discoverySDY, "Meta-Analysis")
+
+discPlot <- ggplot(coordDfs$SDY212, aes(x,y)) +
+                geom_line(col="#E41A1C") +
+                geom_line(data = coordDfs$SDY63, aes(x,y), col="#377EB8") + 
+                geom_line(data = coordDfs$SDY404, aes(x,y), col="#4DAF4A") + 
+                geom_line(data = coordDfs$SDY400, aes(x,y), col="#984EA3") + 
+                geom_line(data = coordDfs$`Meta-Analysis`, aes(x,y), col="black") +
+                xlim(-1,1) +
+                xlab("Gene Module Activity") +
+                ylab("Density") +
+                theme(legend.text = element_text(c(discoverySDY,"Meta-Analysis")))
+
+# B. validation plot-------------------------------------------------------
+valSF <- qusage:::pdfScaleFactor(yng_res$valPDF)
+valDF <- makeCoordDf(yng_res$valPDF, 
+                     meta = FALSE, 
+                     loc, 
+                     scalefactor = valSF)
+
+valPlot <- ggplot(valDF, aes(x,y)) +
+                geom_line(col="black") +
+                xlim(-1,1) +
+                xlab("Gene Module Activity") +
+                ylab("Density") +
+                geom_vline(xintercept = 0)
+
+# C. multiday plot----------------------------------------------------------
+eset <- sdy80all[ , !is.na(sdy80all$fc_res_max_d30) ]
+
+# get Module Intensity for each subject by averaging for genes in module
+em <- data.frame(exprs(eset), stringsAsFactors = F)
+em$geneSymbols <- fData(eset)$gene_symbol
+em <- em[ em$geneSymbols %in% gene_set$`BCR signaling (M54)`, ]
+em <- em[ , !(colnames(em) == "geneSymbols") ]
+em.Means <- data.frame(subject = colnames(em), ModInt = colMeans(em, na.rm = T))
+
+# Qualify response
+pd <- pData(eset)
+pd$resp <- c("Low responder",
+            "Moderate responder",
+            "High responder")[ pd$fc_res_max_d30 + 1 ]
+
+# merge and order for ggplot
+tcData <- merge(pd, em.Means, by = "subject" )
+tcData$resp <- factor(tcData$resp,
+                    c("Low responder",
+                      "Moderate responder",
+                      "High responder"),
+                    ordered = TRUE)
+
+tcPlot <- ggplot(tcData,
+                 aes(x    = factor(timepoint.day),
+                     y    = ModInt,
+                     fill = resp))                             +
+                 geom_boxplot(outlier.size = 0)                               +
+                 geom_point(position = position_jitterdodge(dodge.width = 0.8),
+                           aes(color = resp, shape = resp), size = 3)         +
+                 scale_fill_manual(values=c("white","white","white"))         +
+                 scale_shape_manual(values=c(15,19,17))                       +
+                 scale_color_manual(values=c("deepskyblue","magenta","red"))  +
+                 xlab("Time (Days post Vaccination)")                         + 
+                 ylab("Gene Module Intensity") +
+                 ylim(8.8, 9.6)
+
+#compute day0 vs day1 paired t-test
+t01  <- dcast(tcData[timepoint.day %in% c(0,1)], 
+              rn~timepoint.day, 
+              value.var='score')
+t01p <- t.test(t01$`0`, 
+               t01$`1`, 
+               paired = T, 
+               alternative = 'less')
+
+#compute comparison of low vs high responders at each time point
+timeSDY80 <- lapply(unique(tcData$timepoint.day),
+                    function(t)
+                      t.test(tcData[timepoint.day == t & resp=='Low responder']$score,
+                             tcData[timepoint.day == t & resp=='High responder']$score))
+names(timeSDY80) <- unique(tcData$timepoint.days)
+
+print(tcPlot)
+  
+```
+
+***
+## STEP 3: SINGLE GENE ANALYSIS
 The single gene meta analysis was created by the Stanford HIPC collaborators and uses their package `MetaIntegrator`, which is also available on BioConductor.  
 
 ```{r Single-Gene-Analysis, include=FALSE}
@@ -304,7 +613,7 @@ The single gene meta analysis was created by the Stanford HIPC collaborators and
 ```
 
 ### YOUNG COHORT
-***
+
 #### Discovery - Upregulated Genes
 ```{r}
   DT::datatable(sgaResYng$disc$upReg)
@@ -315,17 +624,154 @@ The single gene meta analysis was created by the Stanford HIPC collaborators and
   DT::datatable(sgaResYng$disc$dnReg)
 ```
 
-***
-#### Violin Plot - SDY80
-```{r}
-  sgaResYng$val$ViolinPlot
+#### Figure 4
+Forest plot of gene up/down reg from discovery cohort
+```{r heatmaps}
+# need up/down reg for each selected gene for each study
 ```
 
-#### ROC Plot - SDY80
-```{r}
-  sgaResYng$val$RocPlot
+#### Figure 6
+```{r sdy80-singleGene-analysis}
+sgaResYng$val$ViolinPlot
+sgaResYng$val$RocPlot
+eset <- sdy80all[ , !is.na(sdy80all$fc_res_max_d30) ]
+
+gem <- makeGEM(eset = eset,
+               rmMods = FALSE,
+               ens_table = ens_table)
+
+# select positive genes from Discovery group and compute validation
+gem$pheno$score <- arithMean_comb_validate(GEM = gem, 
+                                           genes_p = sgaResYng$disc$posGenes,
+                                           genes_n = NULL)$score
+
+gem$pheno$resp <- c("Low responder",
+                    "Moderate responder",
+                    "High responder")[ gem$class + 1 ]
+
+tcData <- gem$pheno[ , colnames(gem$pheno) %in% c("resp", "timepoint.day", "score") ]
+
+tcData$resp <- factor(tcData$resp,
+                      c("Low responder",
+                        "Moderate responder",
+                        "High responder"),
+                      ordered = TRUE)
+
+tcPlot <- ggplot(tcData,
+       aes(x    = factor(timepoint.day),
+           y    = score,
+           fill = resp))                                       +
+  geom_boxplot(outlier.size = 0)                               +
+  geom_point(position = position_jitterdodge(dodge.width=0.8),
+             aes(color = resp, shape = resp), size = 3)        +
+  scale_fill_manual(values=c("white","white","white"))         +
+  scale_shape_manual(values=c(15,19,17))                       +
+  scale_color_manual(values=c("deepskyblue","magenta","red"))  +
+  xlab("Time (Days)")                                          + 
+  ylab("Response Score")
+
+#compute day0 vs day1 paired t-test
+t01  <- dcast(tcData[timepoint.day %in% c(0,1)], 
+              rn~timepoint.day, 
+              value.var='score')
+t01p <- t.test(t01$`0`, 
+               t01$`1`, 
+               paired = T, 
+               alternative = 'less')
+
+#compute comparison of low vs high responders at each time point
+timeSDY80 <- lapply(unique(tcData$timepoint.day),
+                    function(t)
+                      t.test(tcData[timepoint.day == t & resp=='Low responder']$score,
+                             tcData[timepoint.day == t & resp=='High responder']$score))
+names(timeSDY80) <- unique(tcData$timepoint.days)
+
+print(tcPlot)
 ```
-***
 
 ### OLD COHORT
-No Significant up or down-regulated genes were found using the adjusted expressionSet and therefore analysis is not performed on SDY67.
+No Significant up or down-regulated genes were found using the adjusted expressionSet and therefore plots are not shown for SDY67 alone.
+
+```{r get-old-res}
+sgaResOld <- singleGeneAnalysis(adjEsetList = oldEsets, cohort = "old")
+```
+
+## STEP 4: CROSS-META-ANALYSES FIGURES
+
+#### Figure 5
+Combining the results of the module intensity and single gene analysis, Figure 5 presents heat maps of both.
+```{r heatmaps}
+# A - Young Module
+
+# A - Older Module
+
+# B - Single Gene
+```
+
+#### Effect Sizes - Figure 8
+```{r old-vs-young-gene-effect}
+# Single Gene --------------------------------------------------------------------
+#create input dataset
+sga <- as.data.table(merge(sgaResOld$disc$metaAnalysis$pooledResults,
+                           sgaResYng$disc$metaAnalysis$pooledResults,
+                           by = 0))
+
+#create figure
+newCOrrPlotBW <- ggplot(sga,
+  aes(y = effectSize.y, x = effectSize.x)) +
+  geom_vline(xintercept=0,size=0.1, colour="black")   +
+  geom_hline(yintercept=0,size=0.1, colour="black")   +
+  geom_point(color = 'gray65')                        +
+  theme_bw() +
+  theme(axis.title        = element_text(size=16,face="bold"),
+        legend.title      = element_blank(),
+        legend.key        = element_rect(colour = "white"),
+        legend.position   = c(0.25, 0.9),
+        legend.text       = element_text(size = 15,face="bold"),
+        legend.background = element_rect(colour = "lightgray")) +
+  geom_point(data = sga[grep("^(RAB24|GRB2|DPP3|ACTB|MVP|DPP7|ARCP4)$", sga$Row.names),],
+             aes(x = effectSize.x,y = effectSize.y),
+             color = 'gray20',
+             size  = 3,
+             shape = 15) +
+  geom_point(data = sga[grep("^(PTPN22|PURA|SP4)$", sga$Row.names),],
+             aes(x = effectSize.x,y = effectSize.y),
+             color = 'gray20',
+             size  = 3,
+             shape = 17) +
+  xlab("Gene effect size (young)") + ylab("Gene effect size (older)")
+
+#compute plots @ a single dataset level
+newCOrrPlotBWpD <- negCorPlot(hipc_young_new_Meta$metaAnalysis$datasetEffectSizes,
+                              hipc_old_new_Meta$metaAnalysis$datasetEffectSizes)
+
+#create input dataset
+gma <- as.data.table(merge(yng_res$disc,
+                           old_res$disc,
+                           by = 0))
+
+#create figure
+newCOrrPlotBW <- ggplot(gma,
+  aes(y = effectSize.y, x = effectSize.x)) +
+  geom_vline(xintercept=0,size=0.1, colour="black")   +
+  geom_hline(yintercept=0,size=0.1, colour="black")   +
+  geom_point(color = 'gray65')                        +
+  theme_bw() +
+  theme(axis.title        = element_text(size=16,face="bold"),
+        legend.title      = element_blank(),
+        legend.key        = element_rect(colour = "white"),
+        legend.position   = c(0.25, 0.9),
+        legend.text       = element_text(size = 15,face="bold"),
+        legend.background = element_rect(colour = "lightgray")) +
+  geom_point(data = gma[grep("^(RAB24|GRB2|DPP3|ACTB|MVP|DPP7|ARCP4)$", gma$Row.names),],
+             aes(x = effectSize.x,y = effectSize.y),
+             color = 'gray20',
+             size  = 3,
+             shape = 15) +
+  geom_point(data = gma[grep("^(PTPN22|PURA|SP4)$", gma$Row.names),],
+             aes(x = effectSize.x,y = effectSize.y),
+             color = 'gray20',
+             size  = 3,
+             shape = 17) +
+  xlab("Gene effect size (young)") + ylab("Gene effect size (older)")
+```

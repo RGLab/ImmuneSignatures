@@ -43,7 +43,7 @@ meta_analysis <- function(adj_eset_list, cohort, gene_set){
   pvalue.cutoff <- 0.0105
   endPoint <- "fc_res_max_d30"
 
-  result_dfs <- list() # holds output tables for use with markdown
+  results <- list() # holds output tables for use with markdown
 
   discoverySDY = c('SDY212','SDY63','SDY404','SDY400')
   validation.sdy <- ifelse(cohort == 'young', "SDY80", "SDY67")
@@ -59,14 +59,14 @@ meta_analysis <- function(adj_eset_list, cohort, gene_set){
 
   for(sdy in discoverySDY){
     idx <- idx + 1
-    quSageObjList[[idx]] <- run_qusage(adj_eset = adj_eset_list[[sdy]],
-                                       sdy = sdy,
-                                       endPoint = endPoint,
-                                       gene_set = gene_set)
+    quSageObjList[[idx]] <- results[[sdy]] <- run_qusage(adj_eset = adj_eset_list[[sdy]],
+                                                         sdy = sdy,
+                                                         endPoint = endPoint,
+                                                         gene_set = gene_set)
   }
 
   ## gene module meta analysis
-  combinePDFsResult <- combinePDFs(quSageObjList, n.points = 2^14)
+  combinePDFsResult <- results[["combinedPDF"]] <- combinePDFs(quSageObjList, n.points = 2^14)
 
   ## p values for gene module meta analysis
   combined.p <- pdf.pVal(combinePDFsResult)
@@ -89,16 +89,7 @@ meta_analysis <- function(adj_eset_list, cohort, gene_set){
 
   rownames(out_matrix) = colnames(combinePDFsResult$path.PDF)
 
-  cat(paste0("DISCOVERY GROUP - SIGNIFICANT PATHWAY FIGURES"))
-
-  result_dfs$dsc <- as.data.frame(out_matrix)
-
-  for(i in index_sig){
-    plot(combinePDFsResult, path.index = i)
-    legend("topleft", legend=c(discoverySDY,"metaAnalysis"),
-           lty=1, col=c("#E41A1C","#377EB8","#4DAF4A","#984EA3","black"))
-    text(0.2, 1, paste("P value =", format(combined.p[i], digits=2),sep=""))
-  }
+  results$dsc <- as.data.frame(out_matrix)
 
 
   #########################################################################################################
@@ -107,10 +98,10 @@ meta_analysis <- function(adj_eset_list, cohort, gene_set){
   ##
   #########################################################################################################
 
-  qs.results <- run_qusage(adj_eset = adj_eset_list[[validation.sdy]],
-                           sdy = validation.sdy,
-                           endPoint = endPoint,
-                           gene_set = gene_set)
+  qs.results <- results[["valPDF"]] <- run_qusage(adj_eset = adj_eset_list[[validation.sdy]],
+                                                        sdy = validation.sdy,
+                                                        endPoint = endPoint,
+                                                        gene_set = gene_set)
 
   pvalue <- pdf.pVal(qs.results)[index_sig]
   qvalue <- p.adjust(pvalue, method = "BH")
@@ -122,27 +113,7 @@ meta_analysis <- function(adj_eset_list, cohort, gene_set){
   
   rownames(out_matrix) <- names(gene_set)[index_sig] # equal to selected.pathways
 
-  # cat(paste0("VALIDATION STUDY - SIGNFICANT PATHWAY FIGURES"))
+  results$val <- as.data.frame(out_matrix)
 
-  result_dfs$val <- as.data.frame(out_matrix)
-
-  # # Not effective part of Display, therefore commenting out for UI work -- plot graphs
-  # for(i in index_sig){
-  #   plot(qs.results,
-  #        path.index = i,
-  #        col = "black",
-  #        xlim = c(-1,1),
-  #        ylim = c(0,10),
-  #        xlab = "Gene Module Activity",
-  #        main = names(geneSetDB)[i]
-  #   )
-  #   text(0.2,
-  #        1,
-  #        paste("p value =",
-  #              round(pdf.pVal(qs.results)[i], digits = 3),
-  #              sep = " "))
-  #   abline(v = 0, lty = 2)
-  # }
-
-  return(result_dfs)
+  return(results)
 }
