@@ -195,7 +195,8 @@ metaRes <- function(gems){
   res <- list()
 
   # Structure it as a list to correctly input into MetaIntegrator
-  mRes <- MetaIntegrator::runMetaAnalysis( list("originalData" = gems) )
+  # Keep copy for forest plot figure 4
+  res$metaObj <- mRes <- MetaIntegrator::runMetaAnalysis( list("originalData" = gems) )
 
   # filter meta-analysis results by 10% FDR
   mResFilt <- MetaIntegrator::filterGenes(mRes,
@@ -210,7 +211,9 @@ metaRes <- function(gems){
   res$dnReg <- round(tmp[ tmp$fisherFDRDown < 0.1, ], digits = 3)
 
   # select set of positive genes to be used from this point on
+  # Keep copy of neg genes for forest plot figure 4 
   res$posGenes <- mResFilt$filterResults$FDR0.1_es0_nStudies1_looaFALSE_hetero0$posGeneNames
+  res$negGenes <- mResFilt$filterResults$FDR0.1_es0_nStudies1_looaFALSE_hetero0$negGeneNames
 
   return(res)
 }
@@ -341,22 +344,27 @@ singleGeneAnalysis <- function(adjEsetList, cohort){
   sdyId <- ifelse(cohort == "young", "SDY80", "SDY67")
   valGemUnProc <- gems[[ sdyId  ]]
 
-  # compute validation object using validation study gem
-  valObj <- arithMean_comb_validate(valGemUnProc, finalRes$disc$posGenes, NULL)
-
-  # ViolinPlot for Val - fig 6A in manuscript
-  finalRes$val$ViolinPlot <- violinPlotter(valObj,
-                                 c("Low responders","Moderate responders","High responders"),
-                                 c("deepskyblue","magenta","red"),
-                                 c(15,19,17))
-
-  # ROCPlot for Val - fig 6B in manuscript
-  valRoc <- multi_roc_cmp(valObj)
-  valRocLs <- list(valRoc[[1]], valRoc[[2]])
-  valRocLs[[1]]$name <- "High Responders Vs Low Responders"
-  valRocLs[[2]]$name <- "Moderate Responders Vs Low Responders"
-  finalRes$val$RocPlot <- rocGGMultiRoc(valRocLs) + theme_bw() +
-    scale_colour_manual(values=c("springgreen1","darkgreen"))
+  # Older cohort does not return any significant genes therefore not processing
+  # But do need metaAnalysis object for Fig8
+  if(sdyId != "SDY67"){
+    # compute validation object using validation study gem
+    valObj <- arithMean_comb_validate(valGemUnProc, finalRes$disc$posGenes, NULL)
+    
+    # ViolinPlot for Val - fig 6A in manuscript
+    finalRes$val$ViolinPlot <- violinPlotter(valObj,
+                                             c("Low responders","Moderate responders","High responders"),
+                                             c("deepskyblue","magenta","red"),
+                                             c(15,19,17))
+    
+    # ROCPlot for Val - fig 6B in manuscript
+    valRoc <- multi_roc_cmp(valObj)
+    valRocLs <- list(valRoc[[1]], valRoc[[2]])
+    valRocLs[[1]]$name <- "High Responders Vs Low Responders"
+    valRocLs[[2]]$name <- "Moderate Responders Vs Low Responders"
+    finalRes$val$RocPlot <- rocGGMultiRoc(valRocLs) + theme_bw() +
+      scale_colour_manual(values=c("springgreen1","darkgreen"))
+  }
+  
 
   return(finalRes)
 }

@@ -86,6 +86,10 @@ meta_analysis <- function(adj_eset_list, cohort, gene_set){
   out_matrix <- cbind(Pvalue = round(combined.p, digits = 3),
                       FDR = round(combined.q, digits = 3),
                       pathwayActivity = round(pathway.activity, digits = 3))
+  
+  out_matrix <- cbind(Pvalue = combined.p,
+                      FDR = round(combined.q, digits = 3),
+                      pathwayActivity = round(pathway.activity, digits = 3))
 
   rownames(out_matrix) = colnames(combinePDFsResult$path.PDF)
 
