@@ -83,11 +83,7 @@ meta_analysis <- function(adj_eset_list, cohort, gene_set){
     pathway.activity <- c(pathway.activity, tmp)
   }
 
-  out_matrix <- cbind(Pvalue = round(combined.p, digits = 3),
-                      FDR = round(combined.q, digits = 3),
-                      pathwayActivity = round(pathway.activity, digits = 3))
-  
-  out_matrix <- cbind(Pvalue = combined.p,
+  out_matrix <- cbind(Pvalue = round(combined.p, digits = 4),
                       FDR = round(combined.q, digits = 3),
                       pathwayActivity = round(pathway.activity, digits = 3))
 
@@ -111,7 +107,7 @@ meta_analysis <- function(adj_eset_list, cohort, gene_set){
   qvalue <- p.adjust(pvalue, method = "BH")
   pathway.activity.selected <- qs.results$path.mean[index_sig]
 
-  out_matrix <- cbind(Pvalue = round(pvalue, digits = 3),
+  out_matrix <- cbind(Pvalue = round(pvalue, digits = 4),
                       FDR = round(qvalue, digits = 3),
                       pathwayActivity = round(pathway.activity.selected, digits = 3))
   

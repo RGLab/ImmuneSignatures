@@ -199,17 +199,15 @@ for(sdy in studies){
 #### Age Distribution - Figure 2
 Before filtering the expressionSets into "young" (<= 35 years old) and "old" (> 60 years old) cohorts, we create the age distribution figure form the manuscript using the `con$getDataset()` method described before to pull demographic information for all participants.  A second table shows the number of subjects available for each study in ImmuneSpace.  These numbers differ slightly from the manuscript where some filtering was done prior to the calculation of available subjects - e.g. duplicate biosamples removed in SDY212.
 
-```{r age-distribution}
+```{r age-distribution, fig.width=6, fig.height=8}
 pd <- rbindlist(lapply(studies, function(sdy) {
                         con <- CreateConnection(sdy)
                         demo <- con$getDataset("demographics")
                         filt <- data.frame(Age = demo$age_reported, 
                                            Study = sdy)
-                       })
-                )
+                       }))
 
-p <- ggplot(data = pd, 
-            aes(x = Study))                                       + 
+agePlot <- ggplot(data = pd, aes(x = Study))                      + 
             geom_dotplot(binaxis = "y", 
                          fill = "#0838FF", 
                          binwidth = 1, 
@@ -224,7 +222,6 @@ p <- ggplot(data = pd,
                   panel.grid.minor = element_blank(),
                   panel.border = element_blank(),
                   axis.line = element_line(colour = "black"))
-print(p)
 
 colNms <- c("2008-2009", "2009-2010", "2010-2011", "2011-2012", "2012-2013")
 subDf <- matrix(data = "", nrow = 6, ncol = 5, dimnames = list(studies, colNms) )
@@ -237,12 +234,18 @@ subDf["SDY67", "2010-2011"] <- nrow( pd[pd$Study == "SDY67", ] )
 
 subDf <- data.frame(subDf, stringsAsFactors = F)
 colnames(subDf) <- colNms
-print(subDf)
+tbl <- tableGrob(subDf)
+print(plot_grid(agePlot,
+          tbl,
+          ncol = 1,
+          nrow = 2,
+          rel_heights = c(5,3),
+          labels = c("A","B")))
 ```
 
 #### Adjusting HAI - Figure 3
-To provide a more detailed understanding how the hai data adjustment affects the distribution of responders and non-responders, we provide the example of SDY404.  Note that the outlier in Figure 3A. with an extremely high d0 titer is removed from the data before decorrelation.
-```{r adjMFC-demo, fig.width=11, fig.height=9}
+To provide a more detailed understanding how the hai data adjustment affects the distribution of responders and non-responders, we provide the example of SDY404.  Note that the outlier in Figure 3A. with an extremely high d0 titer is removed from the data before decorrelation.  The blue horizontal lines in Figure 3B show the quantile thresholds for categorizing an individual as high responder (>70%) or low responder (<30%).
+```{r adjMFC-prep, include=FALSE, fig.width=11, fig.height=9}
 # Get raw data from ImmuneSpace and select only young subjects -------------------------------
 con <- CreateConnection("SDY404")
 rawHai <- con$getDataset("hai")
@@ -329,8 +332,7 @@ beforeHist <- ggplot(negDatEd, aes(mids,counts)) +
               coord_flip() +
               xlab("MFC Titer Score")                     +
               ylim(-10,0) +
-              theme(axis.title.y = element_blank(),
-                    axis.text.y = element_blank(),
+              theme(axis.text.y = element_blank(),
                     axis.ticks.y = element_blank())
 
 top <- plot_grid(beforeHist, 
@@ -372,10 +374,9 @@ negDatEd <- rbind(negDat, data.frame(counts = c(0, 0, 0),
 afterHist <- ggplot(negDatEd, aes(mids,counts)) + 
               geom_col() +
               coord_flip()  +
-              xlab("MFC Titer Score")                     +
+              xlab("adjMFC Titer Score") +
               ylim(-10,0) +
-              theme(axis.title.y = element_blank(),
-                    axis.text.y = element_blank(),
+              theme(axis.text.y = element_blank(),
                     axis.ticks.y = element_blank())
 
 bottom <- plot_grid(afterHist, 
@@ -384,8 +385,9 @@ bottom <- plot_grid(afterHist,
                     nrow = 1,
                     align="h",
                     rel_widths = c(0.25,1))
+```
 
-# Output together ------------------------------------------------------------------------------
+```{r show-fig3, include=TRUE, fig.width=11, fig.height=9}
 print(plot_grid(top,
                 bottom,
                 ncol = 1,
@@ -495,6 +497,8 @@ DT::datatable(old_res$val)
 - **endPoint: ** fc_res_max_d30
 - **geneSetDB: ** BTM_for_GSEA_20131008.gmt
 
+***
+
 #### BCR Signaling (M54) - Figure 7
 Since figure 7 is based on Yale's qusage analysis, it is presented here.  
 ```{r bcr-analysis, fig.width=11, fig.height=9}
@@ -580,8 +584,9 @@ em <- em[ em$geneSymbols %in% gene_set$`BCR signaling (M54)`, ]
 em <- em[ , !(colnames(em) == "geneSymbols") ]
 em.Means <- data.frame(subject = colnames(em), ModInt = colMeans(em, na.rm = T))
 
-# Qualify response
+# Qualify response, ensure timepoints are ordered by setting class to numeric
 pd <- pData(eset)
+pd$timepoint.day <- as.numeric(pd$timepoint.day)
 pd$Response <- c("Low responder",
                 "Moderate responder",
                 "High responder")[ pd$fc_res_max_d30 + 1 ]
@@ -650,10 +655,12 @@ DT::datatable(sgaResYng$disc$upReg)
 DT::datatable(sgaResYng$disc$dnReg)
 ```
 
+***
+
 #### Figure 4
-Forest plot of gene up/down reg from discovery cohort. Code developed by F. Vallenia @ Stanford.
+Forest plot of up and down regulation of significant genes from the discovery studies. Code developed by F. Vallenia @ Stanford.
 ```{r sga-disc-forestplot}
-customForestPlot <- function(geneName, metaObj, summaryTbl){
+customForestPlot <- function(geneName, metaObject, summaryTbl){
   
   # Prep and subsetting
   studyData <- data.frame(means = metaObject$metaAnalysis$datasetEffectSizes[ geneName, ])
@@ -665,9 +672,9 @@ customForestPlot <- function(geneName, metaObj, summaryTbl){
   pooledSE <- metaObject$metaAnalysis$pooledResults[geneName, "effectSizeStandardError"]
   titleN <- paste(geneName,
                   "\nES =",
-                  round(summaryTbl[ rn == i ]$effectSize, 2),
+                  round(summaryTbl[ rn == geneName ]$effectSize, 2),
                   " p =",
-                  formatC(summaryTbl[ rn == i ]$effectSizePval, 3))
+                  formatC(summaryTbl[ rn == geneName ]$effectSizePval, 3))
   
   # Plot generation
   rmeta::metaplot(mn = studyMeans, 
@@ -692,19 +699,23 @@ summaryTbl <- as.data.table(sgaResYng$disc$metaObj$metaAnalysis$pooledResults,
                             keep.rownames = T)
 allGenes <- c(sgaResYng$disc$posGenes, sgaResYng$disc$negGenes)
 
-pdf("fig4.pdf",
+png("fig4.png",
     height = 9,
-    width  = 12.5)
+    width  = 12.5,
+    units = "in",
+    res = 150)
 par(mfrow = c(3,5))
 dmp <- lapply(allGenes, customForestPlot, sgaResYng$disc$metaObj, summaryTbl)
 dmp <- suppressMessages(dev.off())
 ```
-![Single Gene Analysis Forest Plots for Discovery Group](fig4.pdf)
+![](fig4.png)
 
-#### Figure 6
-```{r sga-val-figures}
-sgaResYng$val$ViolinPlot
-sgaResYng$val$RocPlot
+***
+
+#### Figure 6 - Validation SDY80 Response 
+Fig.6A shows a violin plot of the response score for each category (low, moderate, high) with SDY80 with the geometric mean.  Fig6B. is a ROC curve for the High vs Low and Moderate vs Low responders.  Fig.6C shows the change in response score over time.
+```{r sga-val-figures, fig.width=9, fig.height=10}
+# Create Response by timepoint plot ---------------------------------------------
 eset <- sdy80all[ , !is.na(sdy80all$fc_res_max_d30) ]
 
 gem <- makeGEM(eset = eset,
@@ -716,49 +727,79 @@ gem$pheno$score <- arithMean_comb_validate(GEM = gem,
                                            genes_p = sgaResYng$disc$posGenes,
                                            genes_n = NULL)$score
 
-gem$pheno$resp <- c("Low responder",
+gem$pheno$Response <- c("Low responder",
                     "Moderate responder",
                     "High responder")[ gem$class + 1 ]
 
-tcData <- gem$pheno[ , colnames(gem$pheno) %in% c("resp", "timepoint.day", "score") ]
-
-tcData$resp <- factor(tcData$resp,
+tcData <- gem$pheno[ , colnames(gem$pheno) %in% c("Response", "timepoint.day", "score") ]
+tcData$timepoint.day <- as.numeric(tcData$timepoint.day)
+tcData$subject <- substr(gem$pheno$subject, start = 0, stop = 9)
+tcData$Response <- factor(tcData$Response,
                       c("Low responder",
                         "Moderate responder",
                         "High responder"),
                       ordered = TRUE)
 
 tcPlot <- ggplot(tcData,
-       aes(x    = factor(timepoint.day),
-           y    = score,
-           fill = resp))                                       +
-  geom_boxplot(outlier.size = 0)                               +
-  geom_point(position = position_jitterdodge(dodge.width=0.8),
-             aes(color = resp, shape = resp), size = 3)        +
-  scale_fill_manual(values=c("white","white","white"))         +
-  scale_shape_manual(values=c(15,19,17))                       +
-  scale_color_manual(values=c("deepskyblue","magenta","red"))  +
-  xlab("Time (Days)")                                          + 
-  ylab("Response Score")
+        aes(x    = factor(timepoint.day),
+            y    = score,
+            fill = Response))                                       +
+        geom_boxplot(outlier.size = 0)                               +
+        geom_point(position = position_jitterdodge(dodge.width=0.8),
+                   aes(color = Response, shape = Response), size = 3)        +
+        scale_fill_manual(values=c("white","white","white"))         +
+        scale_shape_manual(values=c(15,19,17))                       +
+        scale_color_manual(values=c("deepskyblue","magenta","red"))  +
+        xlab("Time (Days)")                                          + 
+        ylab("Response Score") +
+        theme(legend.position = "bottom",
+              legend.title = element_blank())
 
 #compute day0 vs day1 paired t-test
-t01  <- dcast(tcData[timepoint.day %in% c(0,1)], 
-              rn~timepoint.day, 
-              value.var='score')
-t01p <- t.test(t01$`0`, 
-               t01$`1`, 
+t0 <- tcData[ tcData$timepoint.day == 0, ]
+t1 <- tcData[ tcData$timepoint.day == 1, ]
+t1 <- t1[ t1$subject %in% t0$subject, ]
+t0 <- t0[ order(t0$subject), ]
+t1 <- t1[ order(t1$subject), ]
+t01p <- t.test(t0$score, 
+               t1$score, 
                paired = T, 
                alternative = 'less')
+t01p.pval <- t01p$p.value
 
 #compute comparison of low vs high responders at each time point
-timeSDY80 <- lapply(unique(tcData$timepoint.day),
-                    function(t)
-                      t.test(tcData[timepoint.day == t & resp=='Low responder']$score,
-                             tcData[timepoint.day == t & resp=='High responder']$score))
-names(timeSDY80) <- unique(tcData$timepoint.days)
+timeTTest <- function(day, tcData){
+  low <- tcData[tcData$timepoint.day == day & tcData$Response == "Low responder", ]
+  high <- tcData[tcData$timepoint.day == day & tcData$Response == "High responder", ]
+  res <- t.test(low$score, high$score)
+  return(res$p.value)
+}
+tp <- sort(unique(tcData$timepoint.day))
+pvals <- round(sapply(tp, timeTTest, tcData), digits = 2)
+timeDf <- t(data.frame(Day = tp, `p-value` = pvals))
+timeTg <- tableGrob(timeDf)
 
-print(tcPlot)
+
+top <- plot_grid(sgaResYng$val$ViolinPlot,
+                 sgaResYng$val$RocPlot,
+                 ncol = 2,
+                 nrow = 1,
+                 align = "h",
+                 labels = c("A","B"))
+
+bottom <- plot_grid(tcPlot,
+                    timeTg,
+                    ncol = 1,
+                    nrow = 2,
+                    labels = c("C",""),
+                    rel_heights = c(4,1))
+
+print(plot_grid(top,
+                bottom,
+                ncol = 1,
+                nrow = 2))
 ```
+***
 
 ### OLD COHORT
 No Significant up or down-regulated genes were found using the adjusted expressionSet and therefore plots are not shown for SDY67 alone.
@@ -768,10 +809,11 @@ No Significant up or down-regulated genes were found using the adjusted expressi
 sgaResOld <- singleGeneAnalysis(adjEsetList = oldEsets, cohort = "old")
 ```
 
+***
 ## STEP 4: CROSS-ANALYSES FIGURES
 
 #### Figure 5
-Combining the results of the module intensity and single gene analysis, Figure 5 presents heat maps of both.
+Combining the results of the module intensity and single gene analysis, Figure 5 presents heat maps of both.  Fig.5A differs from the manuscript due to the SDY404 subject swap - in this case, the pvalue for 'enriched in activated dendritic cells / monocytes (M64)' is slightly greater and therefore does not meet the threshold.  Fig.5B is also missing two genes that were not present in SDY80: "APOB48R","TNFSF13".
 ```{r heatmaps}
 # A - Young and Old Modules---------------------------------------------------------------------
 sigMods <- rownames(yng_res$val)
@@ -877,12 +919,11 @@ print(plot_grid(top_row,
                 ncol = 1, 
                 nrow = 2,
                 labels = c("A","B")))
-
-
 ```
 
+***
 #### Effect Sizes - Figure 8
-Figure 8A compares p-values of each gene in older and younger cohorts, while figure 8B does the same for pathway-activity of the gene set modules.
+Figure 8A compares p-values of each gene in older and younger cohorts, while figure 8B does the same for pathway-activity of the gene set modules.  Each gene or pathway is coded into non-significant (grey circle), significant-upregulated (black square), or significant-downregulated (black triangle). 
 ```{r old-vs-young-gene-effect, fig.height=4, fig.width=8}
 # Single Gene --------------------------------------------------------------------
 # input

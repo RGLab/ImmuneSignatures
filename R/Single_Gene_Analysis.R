@@ -139,7 +139,10 @@ violinPlotter <- function(inputDF,
     geom_errorbar(aes(ymax=mean+sterr,ymin=mean-sterr),
                   col='grey35',width = 0.2) + xlab("") +
     ylab("Response score") +
-    theme(axis.text.x=element_blank())
+    theme(axis.text.x=element_blank(),
+          legend.position = "bottom",
+          legend.direction = "vertical",
+          legend.title = element_blank())
 
 }
 
@@ -152,14 +155,16 @@ rocGGMultiRoc <- function(validation_roc_list,
   roc_data_table <- rocDT(validation_roc_list)
 
   # generate plot
-  p <- ggplot(roc_data_table,aes(x= Specificity,y = Sensitivity,colour = name)) +
-    geom_line(size = rocSize,linetype = rocStyle)                               +
-    scale_x_reverse()                                                           +
-    geom_segment(x=-100, y=0, xend=0, yend=100, linetype=3, colour="grey75")    +
-    theme(legend.key.height=unit(2,"line"),
-          legend.title    = element_blank(),
-          legend.text     = element_text(size = 10),
-          legend.position ="bottom")
+  p <- ggplot(roc_data_table,
+              aes(x= Specificity,y = Sensitivity, colour = name)) +
+              geom_line(size = rocSize,linetype = rocStyle)                   +
+              scale_x_reverse()                                               +
+              geom_segment(x=-100, y=0, xend=0, yend=100, linetype=3, colour="grey75")  +
+              theme(legend.key.height=unit(2,"line"),
+                    legend.title    = element_blank(),
+                    legend.text     = element_text(size = 10),
+                    legend.direction = "vertical",
+                    legend.position = "bottom")
 }
 
 # reformat in a data.table -----------------------------------------------------------
@@ -361,8 +366,8 @@ singleGeneAnalysis <- function(adjEsetList, cohort){
     valRocLs <- list(valRoc[[1]], valRoc[[2]])
     valRocLs[[1]]$name <- "High Responders Vs Low Responders"
     valRocLs[[2]]$name <- "Moderate Responders Vs Low Responders"
-    finalRes$val$RocPlot <- rocGGMultiRoc(valRocLs) + theme_bw() +
-      scale_colour_manual(values=c("springgreen1","darkgreen"))
+    finalRes$val$RocPlot <- rocGGMultiRoc(valRocLs) +
+      scale_colour_manual(values=c("red","magenta"))
   }
   
 
