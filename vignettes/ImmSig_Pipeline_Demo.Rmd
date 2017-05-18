@@ -19,15 +19,15 @@ output: rmarkdown::html_document
 ## OVERVIEW
 This markdown file outputs the results of the HIPC ImmuneSignatures Project using the original parameters and data coming directly from <https://www.immunespace.org> unless noted. This markdown uses heavily refactored code to improve efficiency.  However, all original code developed for the production of the manuscript is included in the /OrigCode folder within the package for reference.  This can be viewed at <https://github.com/ehfhcrc/ImmSig2>. 
 
-#### Data Notes:
-To save time, the gene expression matrices are pre-loaded as data within the package.  The code to generate 
-these expression matrices from ImmuneSpace / GEO can be found in the `R/get_GE.R` script within the package.
-There are also two cases where data from ImmuneSpace could not be used: SDY80 (hai) and SDY400 (ge).  
+#### Figure 1 - Analysis Workflow
+As seen in the figure below, the analysis first starts by extracting data from ImmuneSpace for four "Discovery" studies (SDY212, SDY63, SDY404, and SDY400) and processing that data based on two age cohorts (younger <= 35 years and older > 60 years).  Meta-Analysis are run on these datasets to identify individual and sets of genes that predict immune system response to an influenza vaccine based on day zero transcriptional data.  These signature genes and modules are then validated on one study per age cohort.
+![](fig1.png)
 
-The SDY80 hai data available on ImmuneSpace is not incorporated into the analysis because it does not include 
-subjects without gene expression data.  Although subjects without GE data are filtered out later, they must 
-be included in the adjust_hai.R script in order to achieve the same results for the "endPoint" variable 
-("fc_res_maxd30").  The original raw HAI data came from Yuri Kotliarov at NIH and is included within the package. 
+#### Data Notes:
+To save time, the gene expression matrices are pre-loaded as data within the package.  The code to generate these expression matrices from ImmuneSpace / GEO can be found in the `R/get_GE.R` script within the package.There are also two cases where data from ImmuneSpace could not be used: SDY80 (hai) and SDY400 (ge).  
+
+The SDY80 hai data available on ImmuneSpace is not incorporated into the analysis because it does not include subjects without gene expression data.  Although subjects without GE data are filtered out later, they must be included in the adjust_hai.R script in order to achieve the same results for the "endPoint" variable ("fc_res_maxd30").  The original raw HAI data came from Yuri Kotliarov at NIH and is included within the package. 
+
 The SDY400 gene expression data used in the package comes from the authors at Yale University because the "series.txt" file on GEO has different probe-to-gene symbol mapping that cannot be retroactively changed, while the "non-normalized.txt" version on GEO has experiment specific subject ID mappings that were not able to be correctly given ImmuneSpace subject ids at the time of this report's development.
 
 Finally, the results for the "old" cohort using SDY67 data are slightly different ( <0.5% Relative Error ).  This is due to rounding that occurs from a transformation from one kind of data structure to another.
@@ -44,9 +44,9 @@ library(Biobase) # biocLite
 library(stringr)
 library(hash)
 library(dplyr)
-# library(RCurl) # used by get_GE and data preloaded so not using
 library(data.table)
 # library(preprocessCore) # biocLite, used in get_GE
+# library(RCurl) # used by get_GE and data preloaded so not using
 
 # Figure 2 - Age Distribution
 library(RColorBrewer)
@@ -59,11 +59,13 @@ library(qusage) # biocLite
 
 # Single Gene Analysis
 library(pROC) 
-# library(RMySQL) # depends on libmysqlclient / used in Single Gene Analysis once, data preloaded here
-# sudo apt-get install libmysqlclient-dev
 library(ggplot2) 
 library(clinfun) 
 library(MetaIntegrator) # biocLite
+
+# library(RMySQL) 
+# depends on libmysqlclient / used in Single Gene Analysis once, data preloaded here
+# sudo apt-get install libmysqlclient-dev
 
 # Figure 4 - Sdy Forest Plots
 library(metaplot)
@@ -196,7 +198,7 @@ for(sdy in studies){
 }
 ```
 
-#### Age Distribution - Figure 2
+#### Figure 2 - Age Distribution by Study 
 Before filtering the expressionSets into "young" (<= 35 years old) and "old" (> 60 years old) cohorts, we create the age distribution figure form the manuscript using the `con$getDataset()` method described before to pull demographic information for all participants.  A second table shows the number of subjects available for each study in ImmuneSpace.  These numbers differ slightly from the manuscript where some filtering was done prior to the calculation of available subjects - e.g. duplicate biosamples removed in SDY212.
 
 ```{r age-distribution, fig.width=6, fig.height=8}
@@ -235,6 +237,7 @@ subDf["SDY67", "2010-2011"] <- nrow( pd[pd$Study == "SDY67", ] )
 subDf <- data.frame(subDf, stringsAsFactors = F)
 colnames(subDf) <- colNms
 tbl <- tableGrob(subDf)
+
 print(plot_grid(agePlot,
           tbl,
           ncol = 1,
@@ -243,8 +246,8 @@ print(plot_grid(agePlot,
           labels = c("A","B")))
 ```
 
-#### Adjusting HAI - Figure 3
-To provide a more detailed understanding how the hai data adjustment affects the distribution of responders and non-responders, we provide the example of SDY404.  Note that the outlier in Figure 3A. with an extremely high d0 titer is removed from the data before decorrelation.  The blue horizontal lines in Figure 3B show the quantile thresholds for categorizing an individual as high responder (>70%) or low responder (<30%).
+#### Figure 3 - Adjusted Multiple Fold Change Score (adjMFC) for HAI data
+To provide a more detailed understanding how the hai data adjustment affects the distribution of responders and non-responders, we provide the example of SDY404.  Note that the outlier in Figure 3A. with an extremely high d0 titer is removed from the data before decorrelation.  The blue horizontal lines show the quantile thresholds for categorizing an individual as high responder (>70%) or low responder (<30%).
 ```{r adjMFC-prep, include=FALSE, fig.width=11, fig.height=9}
 # Get raw data from ImmuneSpace and select only young subjects -------------------------------
 con <- CreateConnection("SDY404")
@@ -255,13 +258,11 @@ pd <- adjHai[ adjHai$Age.class == "young", ]
 # bins were created manually
 bins <- c(0.25, 1, 5)
 
-# setup BEFORE Corr plot ----------------------------------------------------------------------
-cc <- cor.test(pd$young_fc_norm_max_ivt, pd$young_d0_norm_max, method = "spearman", exact = F)
-
-xrng = range(pd$young_d0_norm_max, na.rm=T)
-yrng = range(pd$young_fc_norm_max_ivt, na.rm=T)
-xrng[1] = xrng[1] + diff(xrng)/2
-yrng[1] = yrng[1] + diff(yrng)/3*2
+# setup BEFORE Decorr plot ----------------------------------------------------------------------
+cc <- cor.test(pd$young_fc_norm_max_ivt, 
+               pd$young_d0_norm_max, 
+               method = "spearman", 
+               exact = F)
 
 # Create df of group-by-bin statistics
 pd.bin <- pd %>%
@@ -306,7 +307,9 @@ plot.subtitle <- sprintf("subjects = %d, Spearman rho = %.2f, p-value = %.2g",
                                       cc$p.value)
 beforePlot <- plot_size_bubbles(pd$young_d0_norm_max, pd$young_fc_norm_max_ivt)        +
                       scale_size_area(max_size = 8)               + 
-                      ggtitle(bquote(atop(.("Before Correlation"), atop(italic(.(plot.subtitle)), "")))) +
+                      ggtitle(bquote(atop(.("Before Day 0 Decorrelation"),
+                                          atop(italic(.(plot.subtitle)), 
+                                               "")))) +
                       xlab("Day 0 Titer Score")                   +
                       ylab("") +
                       xlim(-0.5,7.5)                              +
@@ -316,11 +319,14 @@ beforePlot <- plot_size_bubbles(pd$young_d0_norm_max, pd$young_fc_norm_max_ivt) 
                       geom_vline(xintercept = bins, col='red', lty=1)  +
                       annotation_custom(tableGrob(format(pd.bin.show, digits = 2), 
                                                   rows = NULL), 
-                                        xmin = xrng[1], 
-                                        xmax = xrng[2], 
-                                        ymin = yrng[1], 
-                                        ymax = yrng[2])
-                     
+                                        xmin = 5.5, 
+                                        xmax = 7.5, 
+                                        ymin = -2.75, 
+                                        ymax = -0.5) +
+                      geom_hline(yintercept = quantile(pd$young_fc_norm_max_ivt, 
+                                                       c(0.3, 0.7), 
+                                                       na.rm=T),
+                                 col="blue", lty = 2) 
 
 breaks <- seq(-1.25, 2.25, 0.5)
 tmp <- hist(pd$young_fc_norm_max_ivt, breaks = breaks)
@@ -330,7 +336,7 @@ negDatEd <- rbind(negDat, data.frame(counts = c(0,0,0,0),
 beforeHist <- ggplot(negDatEd, aes(mids,counts)) + 
               geom_col() +
               coord_flip() +
-              xlab("MFC Titer Score")                     +
+              xlab("MFC Titer Score") +
               ylim(-10,0) +
               theme(axis.text.y = element_blank(),
                     axis.ticks.y = element_blank())
@@ -351,17 +357,21 @@ plot.subtitle <- sprintf("subjects = %d, Spearman rho = %.2f, p-value = %.2g",
                                       cc$estimate,
                                       cc$p.value)
 
-afterPlot <- plot_size_bubbles(pd$young_d0_norm_max, pd$young_fc_res_max)        +
-                      scale_size_area(max_size = 8)               + 
-                      ggtitle(bquote(atop(.("After Correlation"), atop(italic(.(plot.subtitle)), "")))) +
-                      xlab("Day 0 Titer Score")                   +
+afterPlot <- plot_size_bubbles(pd$young_d0_norm_max, pd$young_fc_res_max) +
+                      scale_size_area(max_size = 8) + 
+                      ggtitle(bquote(atop(.("After Day 0 Decorrelation"), 
+                                          atop(italic(.(plot.subtitle)), 
+                                               "")))) +
+                      xlab("Day 0 Titer Score") +
                       ylab("") +
-                      xlim(-0.5, 7.5)                              +
-                      ylim(-2.75, 2.75)                              +
-                      theme_bw()                                  + 
-                      theme(legend.key = element_blank())        +
-                      geom_hline(yintercept = quantile(pd$young_fc_res_max, c(0.3, 0.7), na.rm=T),
-                                 col="blue", lty = 2)        +
+                      xlim(-0.5, 7.5) +
+                      ylim(-2.75, 2.75) +
+                      theme_bw() + 
+                      theme(legend.key = element_blank()) +
+                      geom_hline(yintercept = quantile(pd$young_fc_res_max, 
+                                                       c(0.3, 0.7), 
+                                                       na.rm=T),
+                                 col="blue", lty = 2) +
                       geom_vline(xintercept = bins, 
                                  col='red', lty = 1)        
                       
@@ -457,6 +467,12 @@ oldEsets <- esetLsMkr(eset_d0, cohort = "old")
 ## STEP 2: GENE SET META-ANALYSIS
 The Gene Set or Module meta analysis based on work by the Yale HIPC collaborators is run first.  The analysis is performed by the `QuSage` package that is found on BioConductor.
 
+#### Signficant Pathways Selection Parameters:
+- **FDR.cutoff: ** 0.5
+- **pvalue.cutoff: ** 0.0105
+- **endPoint: ** fc_res_max_d30
+- **geneSetDB: ** BTM_for_GSEA_20131008.gmt
+
 ### YOUNG COHORT
 ```{r meta-analysis-young, include=TRUE, results="markup"}
 yng_res <- meta_analysis(adj_eset_list = yngEsets,
@@ -491,15 +507,9 @@ DT::datatable(old_res$dsc)
 DT::datatable(old_res$val)
 ```
 
-#### Signficant Pathways Selection Parameters:
-- **FDR.cutoff: ** 0.5
-- **pvalue.cutoff: ** 0.0105
-- **endPoint: ** fc_res_max_d30
-- **geneSetDB: ** BTM_for_GSEA_20131008.gmt
-
 ***
 
-#### BCR Signaling (M54) - Figure 7
+#### Figure 7 - BCR Signaling (M54) Gene Module Highlight
 Since figure 7 is based on Yale's qusage analysis, it is presented here.  
 ```{r bcr-analysis, fig.width=11, fig.height=9}
 # Prep and Helper Methods----------------------------------------------------
@@ -556,6 +566,7 @@ discPlot <- ggplot() +
                 xlim(-1,1) +
                 xlab("Gene Module Activity") +
                 ylab("Density") +
+                geom_vline(xintercept = 0) +
                 theme(legend.text = element_text(c(discoverySDY,"Meta-Analysis")))
 
 # B. validation plot-------------------------------------------------------
@@ -657,8 +668,8 @@ DT::datatable(sgaResYng$disc$dnReg)
 
 ***
 
-#### Figure 4
-Forest plot of up and down regulation of significant genes from the discovery studies. Code developed by F. Vallenia @ Stanford.
+#### Figure 4 - Forest Plots of Significant Genes in Discovery Studies
+These Forest plots show significant genes from the discovery studies, both up and down regulated. Code developed by F. Vallenia @ Stanford.
 ```{r sga-disc-forestplot}
 customForestPlot <- function(geneName, metaObject, summaryTbl){
   
@@ -712,7 +723,7 @@ dmp <- suppressMessages(dev.off())
 
 ***
 
-#### Figure 6 - Validation SDY80 Response 
+#### Figure 6 - Young Validation Study (SDY80) Immune Response 
 Fig.6A shows a violin plot of the response score for each category (low, moderate, high) with SDY80 with the geometric mean.  Fig6B. is a ROC curve for the High vs Low and Moderate vs Low responders.  Fig.6C shows the change in response score over time.
 ```{r sga-val-figures, fig.width=9, fig.height=10}
 # Create Response by timepoint plot ---------------------------------------------
@@ -799,6 +810,7 @@ print(plot_grid(top,
                 ncol = 1,
                 nrow = 2))
 ```
+
 ***
 
 ### OLD COHORT
@@ -810,10 +822,11 @@ sgaResOld <- singleGeneAnalysis(adjEsetList = oldEsets, cohort = "old")
 ```
 
 ***
+
 ## STEP 4: CROSS-ANALYSES FIGURES
 
-#### Figure 5
-Combining the results of the module intensity and single gene analysis, Figure 5 presents heat maps of both.  Fig.5A differs from the manuscript due to the SDY404 subject swap - in this case, the pvalue for 'enriched in activated dendritic cells / monocytes (M64)' is slightly greater and therefore does not meet the threshold.  Fig.5B is also missing two genes that were not present in SDY80: "APOB48R","TNFSF13".
+#### Figure 5 - Significant Genes / Modules Heatmaps
+Combining the results of the module intensity and single gene analysis, Figure 5 presents heat maps of both.  Fig.5A differs from the manuscript due to the SDY404 subject swap - in this case, the pvalue for 'enriched in activated dendritic cells / monocytes (M64)' is slightly greater and therefore does not meet the threshold.  Fig.5B is also missing two genes that were not present in SDY80 on ImmuneSpace: "APOB48R","TNFSF13".  This difference is likely due to feature / annotation updates made in bioconductor between the generation of the manuscript and the creation of gene expression matrices on ImmuneSpace.
 ```{r heatmaps}
 # A - Young and Old Modules---------------------------------------------------------------------
 sigMods <- rownames(yng_res$val)
@@ -922,14 +935,15 @@ print(plot_grid(top_row,
 ```
 
 ***
-#### Effect Sizes - Figure 8
-Figure 8A compares p-values of each gene in older and younger cohorts, while figure 8B does the same for pathway-activity of the gene set modules.  Each gene or pathway is coded into non-significant (grey circle), significant-upregulated (black square), or significant-downregulated (black triangle). 
+#### Figure 8 - Gene / Modules Effect Sizes
+Figure 8A compares p-values of each gene in older and younger cohorts.  The dark squares are genes that were found to be significant in the young cohort, either up or down-regulated. Figure 8B does the same for pathway-activity of the gene set modules from the discovery studies.  Each gene or pathway is coded into non-significant (grey circle), significant for the young cohort (black square), or significant for the old cohort (black triangle). 
 ```{r old-vs-young-gene-effect, fig.height=4, fig.width=8}
 # Single Gene --------------------------------------------------------------------
 # input
-sga <- as.data.table(merge(sgaResOld$disc$metaObj$metaAnalysis$pooledResults,
-                           sgaResYng$disc$metaObj$metaAnalysis$pooledResults,
+sga <- as.data.table(merge(sgaResYng$disc$metaObj$metaAnalysis$pooledResults,
+                           sgaResOld$disc$metaObj$metaAnalysis$pooledResults,
                            by = 0))
+sigGenes <- c(sgaResYng$disc$posGenes, sgaResYng$disc$negGenes)
 
 # fig
 effCorrSGA <- ggplot(sga,
@@ -946,16 +960,11 @@ effCorrSGA <- ggplot(sga,
         legend.position   = c(0.25, 0.9),
         legend.text       = element_text(size = 15,face="bold"),
         legend.background = element_rect(colour = "lightgray")) +
-  geom_point(data = sga[grep("^(RAB24|GRB2|DPP3|ACTB|MVP|DPP7|ARCP4)$", sga$Row.names),],
+  geom_point(data = sga[ sga$Row.names %in% sigGenes,],
              aes(x = effectSize.x,y = effectSize.y),
              color = 'gray20',
              size  = 3,
              shape = 15) +
-  geom_point(data = sga[grep("^(PTPN22|PURA|SP4)$", sga$Row.names),],
-             aes(x = effectSize.x,y = effectSize.y),
-             color = 'gray20',
-             size  = 3,
-             shape = 17) +
   xlab("Gene effect size (young)") + ylab("Gene effect size (older)")
 
 
@@ -980,13 +989,12 @@ effCorrGMA<- ggplot(gma,
         legend.position   = c(0.25, 0.9),
         legend.text       = element_text(size = 15,face="bold"),
         legend.background = element_rect(colour = "lightgray")) +
-  geom_point(data = gma[ grep("M10.0|M10.1|M33|M42|M54|M72.0|M72.1|M191", 
-                             gma$Row.names), ],
+  geom_point(data = gma[ gma$Row.names %in% rownames(yng_res$val), ],
              aes(x = pathwayActivity.x, y = pathwayActivity.y),
              color = 'gray20',
              size  = 3,
              shape = 15) +
-  geom_point(data = gma[grep("M198|M223", gma$Row.names),],
+  geom_point(data = gma[ gma$Row.names %in% rownames(old_res$val), ],
              aes(x = pathwayActivity.x,y = pathwayActivity.y),
              color = 'gray20',
              size  = 3,
