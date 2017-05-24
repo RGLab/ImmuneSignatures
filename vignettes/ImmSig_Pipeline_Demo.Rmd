@@ -658,12 +658,24 @@ sgaResYng <- singleGeneAnalysis(adjEsetList = yngEsets, cohort = "young")
 
 #### Discovery - Upregulated Genes
 ```{r}
-DT::datatable(sgaResYng$disc$upReg)
+up <- data.frame(GeneName = rownames(sgaResYng$disc$upReg),
+                 effectSize = sgaResYng$disc$upReg$effectSize,
+                 effectSizeStdError = sgaResYng$disc$upReg$effectSizeStandardError,
+                 fisherPvalUp = sgaResYng$disc$upReg$fisherPvalUp,
+                 fisherFDRUp = sgaResYng$disc$upReg$fisherFDRUp,
+                 stringsAsFactors = F)
+DT::datatable(up)
 ```
 
 #### Discovery - Downregulated Genes
 ```{r}
-DT::datatable(sgaResYng$disc$dnReg)
+dn <- data.frame(GeneName = rownames(sgaResYng$disc$dnReg),
+                 effectSize = sgaResYng$disc$dnReg$effectSize,
+                 effectSizeStdError = sgaResYng$disc$dnReg$effectSizeStandardError,
+                 fisherPvalDown = sgaResYng$disc$dnReg$fisherPvalDown,
+                 fisherFDRDown = sgaResYng$disc$dnReg$fisherFDRDown,
+                 stringsAsFactors = F)
+DT::datatable(dn)
 ```
 
 ***
@@ -711,15 +723,15 @@ summaryTbl <- as.data.table(sgaResYng$disc$metaObj$metaAnalysis$pooledResults,
 allGenes <- c(sgaResYng$disc$posGenes, sgaResYng$disc$negGenes)
 
 png("fig4.png",
-    height = 9,
-    width  = 12.5,
+    height = 3*1.5,
+    width  = 5*1.25,
     units = "in",
     res = 150)
 par(mfrow = c(3,5))
 dmp <- lapply(allGenes, customForestPlot, sgaResYng$disc$metaObj, summaryTbl)
 dmp <- suppressMessages(dev.off())
 ```
-![](fig4.png)
+<center>![](fig4.png)
 
 ***
 
