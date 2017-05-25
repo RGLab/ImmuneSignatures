@@ -199,22 +199,36 @@ for(sdy in studies){
 ```
 
 #### Figure 2 - Age Distribution by Study 
-Before filtering the expressionSets into "young" (<= 35 years old) and "old" (> 60 years old) cohorts, we create the age distribution figure form the manuscript using the `con$getDataset()` method described before to pull demographic information for all participants.  A second table shows the number of subjects available for each study in ImmuneSpace.  These numbers differ slightly from the manuscript where some filtering was done prior to the calculation of available subjects - e.g. duplicate biosamples removed in SDY212.
+Before filtering the expressionSets into "young" (<= 35 years old) and "old" (> 60 years old) cohorts, we create the age distribution figure form the manuscript using the `con$getDataset()` method described before to pull demographic information for all participants.  The subjects are subset into those with day zero gene expression data (dark blue) and those without (light blue).  A second table shows the number of subjects available for each study in ImmuneSpace.  These numbers differ slightly from the manuscript where some filtering was done prior to the calculation of available subjects - e.g. duplicate biosamples removed in SDY212.
 
 ```{r age-distribution, fig.width=6, fig.height=8}
 pd <- rbindlist(lapply(studies, function(sdy) {
                         con <- CreateConnection(sdy)
                         demo <- con$getDataset("demographics")
-                        filt <- data.frame(Age = demo$age_reported, 
+                        ge <- con$getDataset("gene_expression_files")
+                        ge <- ge[ ge$study_time_collected == 0, ]
+                        demo$ge <- sapply(demo$participant_id, 
+                                          FUN = function(x){x %in% unique(ge$participant_id)})
+                        filt <- data.frame(Age = demo$age_reported,
+                                           GE = demo$ge,
                                            Study = sdy)
                        }))
+pd.with <- pd[ pd$GE == TRUE, ]
+pd.without <- pd[ pd$GE == FALSE, ]
 
-agePlot <- ggplot(data = pd, aes(x = Study))                      + 
-            geom_dotplot(binaxis = "y", 
-                         fill = "#0838FF", 
+agePlot <- ggplot()                      + 
+            geom_dotplot(data = pd.without,
+                         binaxis = "y", 
+                         fill = "#e6ffff", 
                          binwidth = 1, 
                          stackdir = "center", 
-                         aes(y = Age))                            + 
+                         aes(x = Study, y = Age))                 + 
+            geom_dotplot(data = pd.with,
+                         binaxis = "y", 
+                         fill = "blue",
+                         binwidth = 1, 
+                         stackdir = "center", 
+                         aes(x = Study, y = Age))                 + 
             ylab("Age (years)")                                   +
             xlab("Study ID")                                      +
             theme_bw()                                            +
@@ -290,7 +304,7 @@ pd.bin <- pd %>%
 
 pd.bin.show <- pd.bin[, colnames(pd.bin) %in% c("bin", "n", "cor.p")]
 colnames(pd.bin.show)[3] <- "p-value"
-pd.bin.show <- pd.bin.show[1:3, ]
+pd.bin.show <- data.frame(pd.bin.show[1:3, ])
 
 # Custom function developed by Yuri Kotliarov
 plot_size_bubbles <- function(x,y) {
@@ -664,7 +678,7 @@ up <- data.frame(GeneName = rownames(sgaResYng$disc$upReg),
                  fisherPvalUp = sgaResYng$disc$upReg$fisherPvalUp,
                  fisherFDRUp = sgaResYng$disc$upReg$fisherFDRUp,
                  stringsAsFactors = F)
-DT::datatable(up)
+DT::datatable(up, fillContainer = T)
 ```
 
 #### Discovery - Downregulated Genes
@@ -675,7 +689,7 @@ dn <- data.frame(GeneName = rownames(sgaResYng$disc$dnReg),
                  fisherPvalDown = sgaResYng$disc$dnReg$fisherPvalDown,
                  fisherFDRDown = sgaResYng$disc$dnReg$fisherFDRDown,
                  stringsAsFactors = F)
-DT::datatable(dn)
+DT::datatable(dn, fillContainer = T)
 ```
 
 ***
