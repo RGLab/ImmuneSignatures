@@ -149,19 +149,9 @@ eset_d0 <- list()
 sdy80all <- "" # need eset with all time points for some figures
 
 for(sdy in studies){
-  if(sdy == "SDY400"){
-    # SDY400:
-    # Using original table because GEO series matrix produces different results 
-    # in terms of gene symbols incorporated into qusage analysis, perhaps due 
-    # to different normalization method(?), and GEO non-normalized.txt does 
-    # not have sample names that can be mapped with available information.
-    # All original tables come from HIPC Google Drive.
-    em <- get(paste0(tolower(sdy), "_exprMxOrig"))
-  } else {
-    # See comments in get_GE.R for methodology of generating expression matrices. 
-    # These matrices are created using online, public sources (e.g. GEO or ImmuneSpace).
-    em <- getGE(sdy) 
-  }
+  # See comments in get_GE.R for methodology of generating expression matrices. 
+  # These matrices are created using online, public sources (e.g. GEO or ImmuneSpace).
+  em <- getGE(sdy)
   
   # Remove dup biosamples based on Yale HIPCMetaModuleAnalysis.R comments
   if(sdy == "SDY212"){ em <- em[ , -(grep("SUB134307.*", colnames(em))) ] }
@@ -482,7 +472,7 @@ oldEsets <- esetLsMkr(eset_d0, cohort = "old")
 The Gene Set or Module meta analysis based on work by the Yale HIPC collaborators is run first.  The analysis is performed by the `QuSage` package that is found on BioConductor.
 
 #### Signficant Pathways Selection Parameters:
-- **FDR.cutoff: ** 0.5
+- **FDR.cutoff: ** 0.506
 - **pvalue.cutoff: ** 0.0105
 - **endPoint: ** fc_res_max_d30
 - **geneSetDB: ** BTM_for_GSEA_20131008.gmt
@@ -737,8 +727,8 @@ summaryTbl <- as.data.table(sgaResYng$disc$metaObj$metaAnalysis$pooledResults,
 allGenes <- c(sgaResYng$disc$posGenes, sgaResYng$disc$negGenes)
 
 png("fig4.png",
-    height = 3*1.5,
-    width  = 5*1.25,
+    height = 3*3,
+    width  = 5*2.5,
     units = "in",
     res = 150)
 par(mfrow = c(3,5))
