@@ -24,11 +24,9 @@ As seen in the figure below, the analysis first starts by extracting data from I
 ![](fig1.png)
 
 #### Data Notes:
-To save time, the gene expression matrices are pre-loaded as data within the package.  The code to generate these expression matrices from ImmuneSpace / GEO can be found in the `R/get_GE.R` script within the package.There are also two cases where data from ImmuneSpace could not be used: SDY80 (hai) and SDY400 (ge).  
+To save time, the gene expression matrices are pre-loaded as data within the package.  The code to generate these expression matrices from ImmuneSpace / GEO can be found in the `R/get_GE.R` script within the package.There is also one case where data from ImmuneSpace could not be used: SDY80 (hai).  
 
 The SDY80 hai data available on ImmuneSpace is not incorporated into the analysis because it does not include subjects without gene expression data.  Although subjects without GE data are filtered out later, they must be included in the adjust_hai.R script in order to achieve the same results for the "endPoint" variable ("fc_res_maxd30").  The original raw HAI data came from Yuri Kotliarov at NIH and is included within the package. 
-
-The SDY400 gene expression data used in the package comes from the authors at Yale University because the "series.txt" file on GEO has different probe-to-gene symbol mapping that cannot be retroactively changed, while the "non-normalized.txt" version on GEO has experiment specific subject ID mappings that were not able to be correctly given ImmuneSpace subject ids at the time of this report's development.
 
 Finally, the results for the "old" cohort using SDY67 data are slightly different ( <0.5% Relative Error ).  This is due to rounding that occurs from a transformation from one kind of data structure to another.
 
@@ -655,10 +653,12 @@ The single gene meta analysis was created by the Stanford HIPC collaborators and
 
 ```{r Single-Gene-Analysis, include=FALSE}
 # outputs a plot so need include=FALSE
-sgaResYng <- singleGeneAnalysis(adjEsetList = yngEsets, cohort = "young")
+sgaResYng <- singleGeneAnalysis(adjEsetList = yngEsets, 
+                                grpToCut = 1,
+                                cohort = "young")
 ```
 
-### YOUNG COHORT
+### YOUNG COHORT: HIGH VS LOW RESPONDERS
 
 #### Discovery - Upregulated Genes
 ```{r}
@@ -746,7 +746,8 @@ Fig.6A shows a violin plot of the response score for each category (low, moderat
 eset <- sdy80all[ , !is.na(sdy80all$fc_res_max_d30) ]
 
 gem <- makeGEM(eset = eset,
-               rmMods = FALSE,
+               rmGrp = FALSE,
+               grpToCut = NA,
                ens_table = ens_table)
 
 # select positive genes from Discovery group and compute validation
@@ -829,15 +830,47 @@ print(plot_grid(top,
 
 ***
 
-### OLD COHORT
+### OLD COHORT: HIGH VS LOW RESPONDERS
 No Significant up or down-regulated genes were found using the adjusted expressionSet and therefore plots are not shown for SDY67 alone.
 
 ```{r get-old-res, include=FALSE}
 # outputs a plot so need include=FALSE
-sgaResOld <- singleGeneAnalysis(adjEsetList = oldEsets, cohort = "old")
+sgaResOld <- singleGeneAnalysis(adjEsetList = oldEsets, 
+                                grpToCut = 1,
+                                cohort = "old")
 ```
 
 ***
+
+### YOUNG COHORT: MODERATE VS LOW RESPONDERS
+No Significant up or down-regulated genes were found using the adjusted expressionSet, therefore the significant genes from the young cohort with high vs low responders are used to generate figure 9.
+
+```{r get-lvm-res, include=FALSE}
+# outputs a plot so need include=FALSE
+# Note: SDY400 is not included because there are less than two cases and/or controls
+sgaResLvm <- singleGeneAnalysis(adjEsetList = yngEsets, 
+                                grpToCut = 2,
+                                cohort = "young")
+```
+
+#### Figure 9 - Forest Plots of Significant Genes for Low vs Moderate Responders
+```{r lvm-forest-plot, include=FALSE}
+# Plot as png and then load img
+summaryTbl <- as.data.table(sgaResLvm$disc$metaObj$metaAnalysis$pooledResults, 
+                            keep.rownames = T)
+# NOTE: using the genes from the sgaResYng, no sig-genes for sgaResLvm
+allGenes <- c(sgaResYng$disc$posGenes, sgaResYng$disc$negGenes)
+
+png("fig9.png",
+    height = 3*3,
+    width  = 5*2.5,
+    units = "in",
+    res = 150)
+par(mfrow = c(3,5))
+dmp <- lapply(allGenes, customForestPlot, sgaResLvm$disc$metaObj, summaryTbl)
+dmp <- suppressMessages(dev.off())
+```
+<center>![](fig9.png)
 
 ## STEP 4: CROSS-ANALYSES FIGURES
 

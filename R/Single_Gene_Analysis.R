@@ -234,10 +234,10 @@ metaRes <- function(gems){
 #' @param rmMods Remove moderates, takes boolean
 #' @param ens_table ensemble table of same name preloaded with pkg
 #' @export
-makeGEM <- function(eset, rmMods, ens_table){
+makeGEM <- function(eset, rmGrp, grpToCut, ens_table){
   
-  # rm moderates
-  if( rmMods ){ eset <- eset[ , eset$fc_res_max_d30 != 1 ] }
+  # rm moderates or high depending
+  if( rmGrp ){ eset <- eset[ , eset$fc_res_max_d30 != grpToCut ] }
   
   #create key vector
   keys        <- fData(eset)$gene_symbol
@@ -249,7 +249,7 @@ makeGEM <- function(eset, rmMods, ens_table){
   # create class vector and change high-responders to "1" from "2" for MetaIntegrator
   # Able to do this because all moderate responders have already been removed
   endPoint <- pData(eset)[["fc_res_max_d30"]]
-  if( rmMods ){ endPoint <- gsub(2, 1, endPoint) }
+  if( rmGrp & grpToCut == 1 ){ endPoint <- gsub(2, 1, endPoint) }
   classV <- as.numeric(endPoint)
   names(classV) <- row.names(pData(eset))
   
@@ -325,7 +325,7 @@ swapCols <- function(em, sub1, sub2){
 #' @param adjEsetList list of expressionSet objects holding expr, pheno data adjusted for cohort
 #' @param cohort Study cohort, young or old
 #' @export
-singleGeneAnalysis <- function(adjEsetList, cohort){
+singleGeneAnalysis <- function(adjEsetList, cohort, grpToCut){
 
   # Create holder list for results
   finalRes <- list("disc","val")
@@ -335,15 +335,17 @@ singleGeneAnalysis <- function(adjEsetList, cohort){
   # because runMetaAnalysis only allows 1 or 0 in class aka endPoint,
   # but leave for validation studies for plotting work.
   gems <- lapply(names(adjEsetList), function(sdy){
-              rmMods <- !(sdy %in% c("SDY67", "SDY80"))
+              rmGrp <- !(sdy %in% c("SDY67", "SDY80"))
               makeGEM(eset = adjEsetList[[sdy]],
-                      rmMods = rmMods,
+                      rmGrp = rmGrp,
+                      grpToCut = grpToCut,
                       ens_table = ens_table)
   })
   names(gems) <- names(adjEsetList)
 
   # Assign discovery set and validation
-  discGems <- gems[grep("212|400|404|63", names(gems))]
+  discStr <- ifelse(grpToCut == 1, "212|400|404|63", "212|404|63")
+  discGems <- gems[grep(discStr, names(gems))]
   finalRes$disc <- metaRes(discGems)
 
   sdyId <- ifelse(cohort == "young", "SDY80", "SDY67")
@@ -351,14 +353,18 @@ singleGeneAnalysis <- function(adjEsetList, cohort){
 
   # Older cohort does not return any significant genes therefore not processing
   # But do need metaAnalysis object for Fig8
-  if(sdyId != "SDY67"){
+  if( sdyId == "SDY80" & grpToCut == 1 ){
     # compute validation object using validation study gem
     valObj <- arithMean_comb_validate(valGemUnProc, finalRes$disc$posGenes, NULL)
     
     # ViolinPlot for Val - fig 6A in manuscript
     finalRes$val$ViolinPlot <- violinPlotter(valObj,
-                                             c("Low responders","Moderate responders","High responders"),
-                                             c("deepskyblue","magenta","red"),
+                                             c("Low responders",
+                                               "Moderate responders",
+                                               "High responders"),
+                                             c("deepskyblue",
+                                               "magenta",
+                                               "red"),
                                              c(15,19,17))
     
     # ROCPlot for Val - fig 6B in manuscript
