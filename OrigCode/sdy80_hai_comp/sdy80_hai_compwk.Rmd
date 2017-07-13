@@ -1,0 +1,130 @@
+---
+title: "Comparing SDY80 HAI data between ImmuneSpace and Raw CHI"
+authors: "Evan Henrich"
+contact: "ehenrich@fredhutch.org"
+date: "`r Sys.Date()`"
+output: rmarkdown::html_document
+---
+```{r dependencies}
+library(ImmuneSpaceR)
+library(data.table)
+library(tidyr)
+library(DT)
+```
+
+Get ImmuneSpace Data and subset
+```{r get-is-data}
+con <- CreateConnection("SDY80")
+isData <- con$getDataset("neut_ab_titer")
+isData <- data.frame(isSubject = isData$participant_id,
+                     day = isData$study_time_collected,
+                     isStrain = isData$virus,
+                     value = isData$value_reported)
+```
+
+Get CHI data from files
+```{r get-chi-data}
+# Load rawdata from Yuri
+pathToData <- "/home/ehenrich/R/CHI_titer_calc/chi_data/"
+d0 <- "day0_d0_d70match_08_2013_raw.txt"
+d70 <- "day70_d0_d70match_08_2013_raw.txt"
+d0Data <- fread(file.path(pathToData, d0))
+d70Data <- fread(file.path(pathToData, d70))
+```
+
+Load df that maps SDY80 biosample ids to ImmuneSpace participantIds and create df for strain mapping
+```{r load-id-map}
+idMap <- read.table("/home/ehenrich/R/ImmSig2/OrigCode/sdy80_hai_comp/SDY80_IDmap.tsv", 
+                    header = T,
+                    stringsAsFactors = F,
+                    sep = "\t")
+idMap$bioSampleID <- as.character(idMap$bioSampleID)
+
+# map strain names
+chiNames <- c("swine",
+              "a_brisbane", 
+              "uruguay", 
+              "b_brisbane")
+isNames <- c("A_Ca_07_swine", 
+             "A/Brisbane/59/2007" , 
+             "A_Uruguay_716_2007", 
+             "B_Brisbane_60_2001")
+strainNms <- data.frame(chiNames, isNames)
+```
+
+Helper function for updating Chi data to match format of ImmuneSpace data
+```{r helper-fn-for-cleaning-df}
+updateHai <- function(df, day, strainNms){
+  df$sub <- as.character(df$sub)
+  newDf <- data.table(gather(df, strain, value, 2:5))
+  newDf[idMap, isSubject := participantID, on=c(sub = "bioSampleID")]
+  newDf$day <- day
+  newDf[strainNms, isStrain := isNames, on=c(strain = "chiNames")]
+  return(newDf)
+}
+```
+
+Reformat CHI data to match IS data and exclude subjects not used in HAI calculations
+```{r reformat-chi-data}
+chiD0 <- updateHai(d0Data, 0)
+chiD70 <- updateHai(d70Data, 70)
+chiData <- cDataOrig <- rbind(chiD0, chiD70)
+
+older <- c(212, 229, 232, 233, 244, 245, 250, 251, 260, 261, 273, 277, 280)
+noDemoLow <- 200
+noDemoHigh <- 284
+chiData$sub <- as.numeric(chiData$sub)
+chiData <- chiData[!(chiData$sub %in% older), ]
+chiData <- chiData[(chiData$sub < noDemoHigh & chiData$sub > noDemoLow ), ]
+```
+
+#### Compare Data
+Missing Subject 223
+```{r missing-sub}
+notSubMap <- chiData[(is.na(chiData$isSubject)), ] # just sub 223
+DT::datatable(notSubMap)
+```
+
+Pull values from ImmuneSpace Data for CHI rows with same subject, day, and strain
+```{r val-mapping}
+chiData <- chiData[ !(is.na(chiData$isSubject)), ]
+chiData <- chiData[,-(1:2)]
+
+chiData$isVal <- apply(chiData, 1, FUN = function(row){
+  isRow <- isData[(isData$isSubject == row[2] &
+                   isData$day == row[3] &
+                   isData$isStrain == row[4]), ]
+  if(dim(isRow)[1] != 0){
+    return(isRow$value)
+  }else{
+    return(NA)
+  }
+})
+```
+
+No Values in ImmuneSpace
+```{r na-vals}
+naVals <- chiData[is.na(chiData$isVal), ]
+DT::datatable(naVals)
+```
+
+Different Values between ImmuneSpace and CHI
+```{r diff-vals}
+diffVals <- chiData[(chiData$value != chiData$isVal), ]
+DT::datatable(diffVals)
+```
+
+Same Values between ImmuneSpace and CHI
+```{r same-vals}
+sameVals <- chiData[(chiData$value == chiData$isVal), ]
+DT::datatable(sameVals)
+```
+
+Combined Data Set - would need to remove value conflicts
+```{r create-combined-data-set}
+cDataOrig <- cDataOrig[,-2]
+isData$sub <- idMap$bioSampleID[ match(isData$isSubject, idMap$participantID)]
+combinedData <- rbind(cDataOrig, isData)
+DT::datatable(combinedData)
+```
+

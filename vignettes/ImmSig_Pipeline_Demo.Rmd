@@ -930,8 +930,7 @@ oldPlot <- ggplot() +
 # and Inflammatory Response (M33). Update to remove genes not found in SDY80 eset.
 # Although these were found in the original?
 genes <- unique(unlist(gene_set[ grep("M42|M54|M33", names(gene_set))]))
-genes <- genes[ !(genes %in% c("APOB48R","TNFSF13")) ] # not found in SDY80
-genes <- sort(genes)
+genes <- sort(genes[ !(genes %in% c("APOB48R","TNFSF13")) ]) # not found in SDY80
 
 # fn to return average of gene expression within sdy and response
 adjEm <- function(eset, resp, genes){
