@@ -11,7 +11,7 @@ LazyData: true
 Depends: ImmuneSpaceR,
     data.table
 Imports: Rlabkey,
-    dplyr,
+    dplyr (>= 0.7.1),
     stringr,
     hash,
     Biobase,
