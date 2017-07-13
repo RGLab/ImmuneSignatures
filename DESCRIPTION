@@ -1,4 +1,4 @@
-Package: ImmSig2
+Package: ImmuneSignatures
 Type: Package
 Title: Streamlined package to demonstrate HIPC ImmuneSigatures work using ImmuneSpace Data
 Version: 0.1.0
