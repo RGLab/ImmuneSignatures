@@ -5,6 +5,9 @@ package developer: "Evan Henrich, Gottardo Lab @ Fred Hutchinson Cancer Research
 contact: "ehenrich@fredhutch.org"
 date: "`r Sys.Date()`"
 output: rmarkdown::html_document
+vignette: >
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteIndexEntry{ImmuneSignatures Report}
 ---
 
 ***
