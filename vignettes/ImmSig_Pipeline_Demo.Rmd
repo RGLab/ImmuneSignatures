@@ -20,7 +20,7 @@ vignette: >
 ***
 
 ## OVERVIEW
-This markdown file outputs the results of the HIPC ImmuneSignatures Project using the original parameters and data coming directly from <https://www.immunespace.org> unless noted. This markdown uses heavily refactored code to improve efficiency.  However, all original code developed for the production of the manuscript is included in the /OrigCode folder within the package for reference.  This can be viewed at <https://github.com/ehfhcrc/ImmSig2>. 
+This markdown file outputs the results of the HIPC ImmuneSignatures Project using the original parameters and data coming directly from <https://www.immunespace.org> unless noted. This markdown uses heavily refactored code to improve efficiency.  However, all original code developed for the production of the manuscript is included in the /OrigCode folder within the package for reference.  This can be viewed at <https://github.com/rglab/ImmuneSignatures>. 
 
 #### Figure 1 - Analysis Workflow
 As seen in the figure below, the analysis first starts by extracting data from ImmuneSpace for four "Discovery" studies (SDY212, SDY63, SDY404, and SDY400) and processing that data based on two age cohorts (younger <= 35 years and older > 60 years).  Meta-Analysis are run on these datasets to identify individual and sets of genes that predict immune system response to an influenza vaccine based on day zero transcriptional data.  These signature genes and modules are then validated on one study per age cohort.
@@ -34,7 +34,7 @@ The SDY80 hai data available on ImmuneSpace is not incorporated into the analysi
 Finally, the results for the "old" cohort using SDY67 data are slightly different ( <0.5% Relative Error ).  This is due to rounding that occurs from a transformation from one kind of data structure to another.
 
 #### Package Notes:
-In order to run this vignette locally, you would first need to install the following Bioconductor packages by hand: Biobase, qusage, and MetaIntegrator. Then install `ImmSig2` via `devtools::install_github("ehfhcrc/ImmSig2", build_vignettes=T)` and view the vignette with `vignette("ImmSig_Pipeline_demo", package="ImmSig2")`.  
+In order to run this vignette locally, you would first need to install the following Bioconductor packages by hand: Biobase, qusage, and MetaIntegrator. Then install `ImmuneSignatures` via `devtools::install_github("rglab/ImmuneSignatures", build_vignettes=T)` and view the vignette with `vignette("ImmSig_Pipeline_demo", package="ImmuneSignatures")`.  
 
 
 ```{r set-options, include=FALSE}
@@ -190,7 +190,7 @@ for(sdy in studies){
 ```
 
 #### Figure 2 - Age Distribution by Study 
-Before filtering the expressionSets into "young" (<= 35 years old) and "old" (> 60 years old) cohorts, we create the age distribution figure form the manuscript using the `con$getDataset()` method described before to pull demographic information for all participants.  The subjects are subset into those with day zero gene expression data (dark blue) and those without (light blue).  A second table shows the number of subjects available for each study in ImmuneSpace.  These numbers differ slightly from the manuscript where some filtering was done prior to the calculation of available subjects - e.g. duplicate biosamples removed in SDY212.
+Before filtering the expressionSets into "young" (<= 35 years old) and "older" (>= 60 years old) cohorts, we create the age distribution figure form the manuscript using the `con$getDataset()` method described before to pull demographic information for all participants.  The subjects are subset into those with day zero gene expression data (dark blue) and those without (light blue).  A second table shows the number of subjects available for each study in ImmuneSpace.  These numbers differ slightly from the manuscript where some filtering was done prior to the calculation of available subjects - e.g. duplicate biosamples removed in SDY212.
 
 ```{r age-distribution, fig.width=6, fig.height=8}
 pd <- rbindlist(lapply(studies, function(sdy) {
