@@ -148,14 +148,70 @@ To extract gene expression and hai data from ImmuneSpace, an ImmuneSpace-Connect
 studies <- c("SDY212","SDY63","SDY404","SDY400","SDY67","SDY80")
 eset_d0 <- list()
 sdy80all <- "" # need eset with all time points for some figures
+labkey.url.base <- "https://test.immunespace.org" # need for features to load correctly
 
 for(sdy in studies){
+  print(sdy)
+  con <- CreateConnection(sdy)
+  print(con)
+  
   # See comments in get_GE.R for methodology of generating expression matrices. 
   # These matrices are created using online, public sources (e.g. GEO or ImmuneSpace).
-  em <- getGE(sdy)
+  if(sdy == "SDY67"){
+    em <- getGE(sdy)
+  }else{
+    mats <- con$data_cache$GE_matrices$name
+    es <- con$getGEMatrix(mats, outputType = "raw", annotation = "original") # need raw
+    
+    # SDY212 has a duplicate biosample that is taken out after normalization
+    if(sdy == "SDY212"){
+      # expr matrix
+      em <- exprs(es)
+      em <- em[ -(grep("ILMN_2137536", rownames(em))), ]
+      cnames <- colnames(em)
+      rnames <- rownames(em)
+      em <- preprocessCore::normalize.quantiles(log2(em))
+      colnames(em) <- cnames
+      rownames(em) <- rnames
+      em <- em[ , -(grep("BS694717.1", colnames(em))) ]
+      
+      # features
+      features <- fData(es)
+      features <- features[ -(grep("ILMN_2137536", features$FeatureId)), ]
+      rownames(features) <- features$FeatureId
+      
+      # pheno
+      pheno <- pData(es)
+      pheno <- pheno[ -(grep("BS694717.1", pheno$biosample_accession)), ]
+      
+      es <- ExpressionSet(assayData = em,
+                          featureData = AnnotatedDataFrame(features),
+                          phenoData = AnnotatedDataFrame(pheno))
+    }
+    
+    es <- con$EMNames(es) # map biosample ids to subids
+    em <- exprs(es) # coming in as a matrix 
+    colnames(em) <- gsub(paste0(".", gsub("SDY", "", sdy)),"",colnames(em)) # fix from "SUB123123.212_d0" 
+    
+    if(sdy %in% c("SDY63", "SDY404")){
+      cnames <- colnames(em)
+      rnames <- rownames(em)
+      em <- preprocessCore::normalize.quantiles(log2(em))
+      colnames(em) <- cnames
+      rownames(em) <- rnames
+    }
+    
+    em <- data.frame(em, stringsAsFactors = F)
+    em$geneSymbol <- fData(es)[["gene_symbol"]]
+  }
   
   # Remove dup biosamples based on Yale HIPCMetaModuleAnalysis.R comments
-  if(sdy == "SDY212"){ em <- em[ , -(grep("SUB134307.*", colnames(em))) ] }
+  # Remove two subs not found in original file
+  if(sdy == "SDY212"){ 
+    em <- em[ , -(grep("SUB134307.*", colnames(em))) ] 
+    em <- em[ , -(grep("SUB134242_d0", colnames(em))) ]
+    em <- em[ , -(grep("SUB134267_d0", colnames(em))) ]
+  }
   
   # Yale collaborators have not yet updated GEO database to reflect these changes
   if(sdy == "SDY404"){
@@ -166,7 +222,6 @@ for(sdy in studies){
   # Get raw HAI data from Immunespace and adjust according to Yuri Kotliarov code.
   # NOTE: SDY80 raw data in ImmuneSpace differs, therefore using preloaded.
   # labkey.url.path <- paste0("/Studies/", sdy, "/") # for IS site only
-  con <- CreateConnection(sdy)
   rawHai <- if(sdy != "SDY80"){ con$getDataset("hai") }else{ SDY80_rawtiterdata_v2 }
   adjHai <- adjust_hai(sdy, rawHai)
 
