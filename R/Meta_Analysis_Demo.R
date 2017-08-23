@@ -39,7 +39,7 @@ run_qusage <- function(adj_eset, sdy, endPoint, gene_set){
 meta_analysis <- function(adj_eset_list, cohort, gene_set){
 
   # original manuscript params
-  FDR.cutoff <- 0.506
+  FDR.cutoff <- 0.508
   pvalue.cutoff <- 0.0105
   endPoint <- "fc_res_max_d30"
 
