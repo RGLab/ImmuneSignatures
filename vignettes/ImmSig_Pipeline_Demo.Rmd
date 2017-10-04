@@ -46,8 +46,8 @@ library(stringr)
 library(hash)
 library(dplyr)
 library(data.table)
-# library(preprocessCore) # biocLite, used in get_GE
-# library(RCurl) # used by get_GE and data preloaded so not using
+library(DESeq)
+library(preprocessCore)
 
 # Figure 2 - Age Distribution
 library(RColorBrewer)
@@ -151,32 +151,24 @@ sdy80all <- "" # need eset with all time points for some figures
 labkey.url.base <- "https://test.immunespace.org" # need for features to load correctly
 
 for(sdy in studies){
-  print(sdy)
   con <- CreateConnection(sdy)
-  print(con)
   mats <- con$data_cache$GE_matrices$name
   
   # ---------------------------GET GENE EXPRESSION DATA------------------------------
-  # Annotation for Discovery Cohort and SDY67 is particular to time the microarrays were read.
-  # Using the default / BioConductor Anno from ImmuneSpace causes slightly different
-  # results and therefore is not used for those studies.
-  annotation <- ifelse(sdy == "SDY80",
-                       "default",
-                       "ImmSig")
+  # "ImmSig" annotation is particular to time the microarrays were read and developed
+  # from the original manuscript's files, which were in turn often generated during
+  # the sequencing process. Using the default / BioConductor Anno from ImmuneSpace 
+  # causes slightly different results and therefore is not used.
   
-  outputType <- ifelse(sdy == "SDY67",
-                       "normalized",
-                       "raw")
-  
-  # Need raw, non-normalized data for Studies 212, 63, 404 to match manuscript
-  # Studies 400 and 80 can use GEO's normalized series as "raw"
-  # Annotation is "original", meaning the gene symbol to probe mapping from
-  # when the matrix was created in ImmuneSpace.
-  es <- con$getGEMatrix(mats, outputType = outputType, annotation = annotation)
+  # OutputType must be "raw" in order to pull non-normalized data for Studies
+  # 212, 63, 404, and 67.  SDY80 and SDY400 did not have non-normalized available
+  # from GEO with sampleNames() that could be mapped.  This did not affect results.
+  es <- con$getGEMatrix(mats, outputType = "raw", annotation = "ImmSig")
   
   # SDY212 has special requirements:
-  # 1. probe with NAs must be taken out before normalization
-  # 2. dup biosamples must be taken out of eset prior to sub-id mapping
+  # 1. Prior to normalization, probe with NAs must be taken out before normalization. 
+  # This is a known issue with ImmPort and is still under investigation.
+  # 2. prior to sampleNames mapping, one of duplicated biosamples must be removed.
   if(sdy == "SDY212"){
     # expr matrix
     em <- exprs(es)
@@ -211,21 +203,46 @@ for(sdy in studies){
     em <- preprocessCore::normalize.quantiles(log2(em)) # log2 MUST be before norm!
     colnames(em) <- cnames
     rownames(em) <- rnames
+    
+  }else if(sdy == "SDY67"){
+    
+    # rownames are gene_symbols b/c SDY67 is RNAseq
+    # Normalization is done using functions from DESeq
+    # according to original analysis.
+    countTable <- em
+    condition <- colnames(em)
+    cds <- newCountDataSet(countTable, condition)
+    cds <- estimateSizeFactors(cds) ## estimate size factor
+    cdsBlind <- estimateDispersions(cds, method="blind" )
+    vsd <- varianceStabilizingTransformation(cdsBlind)
+    em <- exprs(vsd)
+    
+    # gene_set actually has some as lower, e.g. 'C10orf11', but to 
+    # reproduce manuscript, must use toupper(), which causes these
+    # NOT to be picked up in downstream analysis.
+    rownames(em) <- toupper(rownames(em)) 
   }
   
-  # fix from "SUB123123.212_d0" to "SUB123123_d0"
+  # Update sub-ids format: "SUB123123.212_d0" to "SUB123123_d0"
   colnames(em) <- gsub(paste0(".", gsub("SDY", "", sdy)),"",colnames(em), fixed = T) 
   em <- data.frame(em, stringsAsFactors = F)
-  em$geneSymbol <- fData(es)[["gene_symbol"]]
   
-  # Remove dup biosamples based on Yale HIPCMetaModuleAnalysis.R comments
-  # Remove two subs not found in original file, but needed for normalization
+  # Not sure why, but the correct "orf" gene symbols are not being found in the fData?! 
+  # Even though they are present in the schema (microarray > featureAnnotation)
+  em$geneSymbol <- if( sdy != "SDY67" ){ 
+                      fData(es)[["gene_symbol"]]
+                   }else{
+                     rownames(em)
+                   }
+  
+  # Remove remaining dup biosample based on Yale HIPCMetaModuleAnalysis.R comments.
+  # Remove two subs not found in original file, but needed for normalization.
   if(sdy == "SDY212"){ 
     em <- em[ , -(grep("SUB134307.*", colnames(em))) ] 
     em <- em[ , -(grep("SUB134242_d0", colnames(em))) ]
     em <- em[ , -(grep("SUB134267_d0", colnames(em))) ]
     
-  # Yale collaborators have not yet updated GEO database to reflect these changes
+  # Yale collaborators have not yet updated GEO database to reflect these changes.
   }else if( sdy == "SDY404"){
     em <- swapCols(em, "SUB120473_d0", "SUB120474_d0") # Incorrect Sex
     em <- swapCols(em, "SUB120460_d0", "SUB120485_d28") # Strong evidence
@@ -233,7 +250,7 @@ for(sdy in studies){
   
   # -----------------------------GET RAW HAI DATA---------------------------------
   # adjust according to Yuri Kotliarov code.
-  # NOTE: SDY80 raw data in ImmuneSpace differs, therefore using preloaded.
+  # NOTE: SDY80 raw HAI data in ImmuneSpace not available yet, therefore using preloaded.
   # labkey.url.path <- paste0("/Studies/", sdy, "/") # for IS site only
   rawHai <- if(sdy != "SDY80"){ con$getDataset("hai") }else{ SDY80_rawtiterdata_v2 }
   adjHai <- adjust_hai(sdy, rawHai)
@@ -541,7 +558,7 @@ oldEsets <- esetLsMkr(eset_d0, cohort = "old")
 The Gene Set or Module meta analysis based on work by the Yale HIPC collaborators is run first.  The analysis is performed by the `QuSage` package that is found on BioConductor.
 
 #### Signficant Pathways Selection Parameters:
-- **FDR.cutoff: ** 0.506
+- **FDR.cutoff: ** 0.508
 - **pvalue.cutoff: ** 0.0105
 - **endPoint: ** fc_res_max_d30
 - **geneSetDB: ** BTM_for_GSEA_20131008.gmt
