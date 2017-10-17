@@ -27,9 +27,7 @@ As seen in the figure below, the analysis first starts by extracting data from I
 ![](fig1.png)
 
 #### Data Notes:
-To save time, the gene expression matrices are pre-loaded as data within the package.  The code to generate these expression matrices from ImmuneSpace / GEO can be found in the `R/get_GE.R` script within the package.There is also one case where data from ImmuneSpace could not be used: SDY80 (hai).  
-
-The SDY80 hai data available on ImmuneSpace is not incorporated into the analysis because it does not include subjects without gene expression data.  Although subjects without GE data are filtered out later, they must be included in the adjust_hai.R script in order to achieve the same results for the "endPoint" variable ("fc_res_maxd30").  The original raw HAI data came from Yuri Kotliarov at NIH and is included within the package. 
+There is one case where data from ImmuneSpace could not be used: SDY80 (hai).  The SDY80 hai data available on ImmuneSpace is not incorporated into the analysis because it does not include subjects without gene expression data.  Although subjects without GE data are filtered out later, they must be included in the adjust_hai.R script in order to achieve the same results for the "endPoint" variable ("fc_res_maxd30").  The original raw HAI data came from Yuri Kotliarov at NIH and is included within the package. 
 
 Finally, the results for the "old" cohort using SDY67 data are slightly different ( <0.5% Relative Error ).  This is due to rounding that occurs from a transformation from one kind of data structure to another.
 
@@ -148,7 +146,6 @@ To extract gene expression and hai data from ImmuneSpace, an ImmuneSpace-Connect
 studies <- c("SDY212","SDY63","SDY404","SDY400","SDY67","SDY80")
 eset_d0 <- list()
 sdy80all <- "" # need eset with all time points for some figures
-labkey.url.base <- "https://test.immunespace.org" # need for features to load correctly
 
 for(sdy in studies){
   con <- CreateConnection(sdy)
