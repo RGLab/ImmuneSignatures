@@ -44,8 +44,8 @@ library(stringr)
 library(hash)
 library(dplyr)
 library(data.table)
-library(DESeq)
-library(preprocessCore)
+library(DESeq) # bioclite
+library(preprocessCore) # bioclite
 
 # Figure 2 - Age Distribution
 library(RColorBrewer)
@@ -75,13 +75,12 @@ library(png)
 library(grid)
 
 options(width = 999)
-knitr::opts_chunk$set(echo=FALSE, 
-               # cache.path=paste(labkey.file.root, "cache/pubmed_report_cache/", sep="/"), # for IS Report
-               cache=TRUE, 
-               warning=FALSE, 
-               message=FALSE, 
-               tidy=TRUE,
-               fig.align = "center")
+knitr::opts_chunk$set(echo = FALSE, 
+                      cache = TRUE, 
+                      warning = FALSE, 
+                      message = FALSE, 
+                      tidy = TRUE,
+                      fig.align = "center")
 ```
 
 ## STEP 1: DATA EXTRACTION AND CLEANING
