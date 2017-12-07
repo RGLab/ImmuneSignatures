@@ -37,7 +37,7 @@ In order to run this vignette locally, you would first need to install the follo
 
 ```{r set-options, include=FALSE}
 # Eset prep
-library(ImmSig2) # to load data and helper functions
+library(ImmuneSignatures) # to load data and helper functions
 library(Rlabkey)
 library(Biobase) # biocLite
 library(stringr)
