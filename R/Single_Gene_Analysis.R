@@ -216,7 +216,7 @@ metaRes <- function(gems){
   res$dnReg <- round(tmp[ tmp$fisherFDRDown < 0.1, ], digits = 3)
 
   # select set of positive genes to be used from this point on
-  # Keep copy of neg genes for forest plot figure 4 
+  # Keep copy of neg genes for forest plot figure 4
   res$posGenes <- mResFilt$filterResults$FDR0.1_es0_nStudies1_looaFALSE_hetero0$posGeneNames
   res$negGenes <- mResFilt$filterResults$FDR0.1_es0_nStudies1_looaFALSE_hetero0$negGeneNames
 
@@ -235,28 +235,28 @@ metaRes <- function(gems){
 #' @param ens_table ensemble table of same name preloaded with pkg
 #' @export
 makeGEM <- function(eset, rmGrp, grpToCut, ens_table){
-  
+
   # rm moderates or high depending
   if( rmGrp ){ eset <- eset[ , eset$fc_res_max_d30 != grpToCut ] }
-  
+
   #create key vector
   keys        <- fData(eset)$gene_symbol
   names(keys) <- rownames(fData(eset))
-  
+
   #remove probes that do not map back to genes
   keys[ !(keys %in% ens_table$display_label) ] <- NA
-  
+
   # create class vector and change high-responders to "1" from "2" for MetaIntegrator
   # Able to do this because all moderate responders have already been removed
   endPoint <- pData(eset)[["fc_res_max_d30"]]
   if( rmGrp & grpToCut == 1 ){ endPoint <- gsub(2, 1, endPoint) }
   classV <- as.numeric(endPoint)
   names(classV) <- row.names(pData(eset))
-  
-  # Ensure that exprs is numeric
-  em <- exprs(eset)
+
+  # Ensure that Biobase::exprs is numeric
+  em <- Biobase::exprs(eset)
   class(em) <- "numeric"
-  
+
   #create list
   gem <- list(expr          = em,
               pheno         = pData(eset),
@@ -265,7 +265,7 @@ makeGEM <- function(eset, rmGrp, grpToCut, ens_table){
               keys          = keys,
               class         = classV,
               comment       = "created from SDY GEM matrix + demographics file")
-  
+
   return(gem)
 }
 
@@ -280,7 +280,7 @@ arithMean_comb_validate <- function(GEM,
                                     genes_p = NULL,
                                     genes_n = NULL,
                                     scale   = 1){
-  
+
   #compute score with mean
   score <- rep(0, length(GEM$class) )
   if( !is.null(genes_p) ){
@@ -296,7 +296,7 @@ arithMean_comb_validate <- function(GEM,
       score <- scale(score)[,1];
     }
   }
-  
+
   #return data.frame
   return(data.frame(class = GEM$class,
                     score = score,
@@ -329,7 +329,7 @@ singleGeneAnalysis <- function(adjEsetList, cohort, grpToCut){
 
   # Create holder list for results
   finalRes <- list("disc","val")
-  
+
   # reformat esets for use in MetaIntegrator functions
   # Need to take out moderate responders here for discovery studies,
   # because runMetaAnalysis only allows 1 or 0 in class aka endPoint,
@@ -356,7 +356,7 @@ singleGeneAnalysis <- function(adjEsetList, cohort, grpToCut){
   if( sdyId == "SDY80" & grpToCut == 1 ){
     # compute validation object using validation study gem
     valObj <- arithMean_comb_validate(valGemUnProc, finalRes$disc$posGenes, NULL)
-    
+
     # ViolinPlot for Val - fig 6A in manuscript
     finalRes$val$ViolinPlot <- violinPlotter(valObj,
                                              c("Low responders",
@@ -366,7 +366,7 @@ singleGeneAnalysis <- function(adjEsetList, cohort, grpToCut){
                                                "magenta",
                                                "red"),
                                              c(15,19,17))
-    
+
     # ROCPlot for Val - fig 6B in manuscript
     valRoc <- multi_roc_cmp(valObj)
     valRocLs <- list(valRoc[[1]], valRoc[[2]])
@@ -375,7 +375,7 @@ singleGeneAnalysis <- function(adjEsetList, cohort, grpToCut){
     finalRes$val$RocPlot <- rocGGMultiRoc(valRocLs) +
       scale_colour_manual(values=c("red","magenta"))
   }
-  
+
 
   return(finalRes)
 }

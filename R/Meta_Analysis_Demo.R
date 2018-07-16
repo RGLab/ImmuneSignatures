@@ -16,8 +16,8 @@
 #---------HELPER METHODS--------------------------------------------------
 # Must sink to stop many print statements in qusage() from showing in report
 run_qusage <- function(adj_eset, sdy, endPoint, gene_set){
-  em <- data.frame(apply(exprs(adj_eset), 2, function(x){ as.numeric(x) } ))
-  rownames(em) <- rownames(exprs(adj_eset))
+  em <- data.frame(apply(Biobase::exprs(adj_eset), 2, function(x){ as.numeric(x) } ))
+  rownames(em) <- rownames(Biobase::exprs(adj_eset))
   em$geneSymbol <- fData(adj_eset)[["gene_symbol"]]
   adj_em <- adjust_GE(em)
   labels <- pData(adj_eset)[, endPoint]
@@ -110,7 +110,7 @@ meta_analysis <- function(adj_eset_list, cohort, gene_set){
   out_matrix <- cbind(Pvalue = round(pvalue, digits = 4),
                       FDR = round(qvalue, digits = 3),
                       pathwayActivity = round(pathway.activity.selected, digits = 3))
-  
+
   rownames(out_matrix) <- names(gene_set)[index_sig] # equal to selected.pathways
 
   results$val <- as.data.frame(out_matrix)
