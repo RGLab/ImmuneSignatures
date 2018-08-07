@@ -186,7 +186,7 @@ adjust_hai <- function(sdy, rawdata){
               rowid <- rowid[[1]]
             }
             target_row <- rawdata[rowid, ]
-            titer_data[iterator, col_to_find] <- as.integer(target_row$value_reported)
+            titer_data[iterator, col_to_find] <- as.integer(target_row$value_preferred)
           }
         }
         iterator <- iterator + 1
