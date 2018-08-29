@@ -145,10 +145,11 @@ To extract gene expression and hai data from ImmuneSpace, an ImmuneSpace-Connect
 studies <- c("SDY212","SDY63","SDY404","SDY400","SDY67","SDY80")
 eset_d0 <- list()
 sdy80all <- "" # need eset with all time points for some figures
+con <- CreateConnection("IS1", onTest = TRUE)
 
 for(sdy in studies){
-  con <- CreateConnection(sdy)
-  mats <- con$data_cache$GE_matrices$name
+  gTerm <- ifelse(sdy == "SDY80", "pH1N1", sdy)
+  mats <- con$cache$GE_matrices$name[ grep(gTerm, con$cache$GE_matrices$name) ]
   
   # ---------------------------GET GENE EXPRESSION DATA------------------------------
   # "ImmSig" annotation is particular to time the microarrays were read and developed
