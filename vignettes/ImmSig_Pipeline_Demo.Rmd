@@ -145,7 +145,7 @@ To extract gene expression and hai data from ImmuneSpace, an ImmuneSpace-Connect
 studies <- c("SDY212","SDY63","SDY404","SDY400","SDY67","SDY80")
 eset_d0 <- list()
 sdy80all <- "" # need eset with all time points for some figures
-con <- CreateConnection("IS1", onTest = TRUE)
+con <- CreateConnection("IS1")
 
 for(sdy in studies){
   gTerm <- ifelse(sdy == "SDY80", "pH1N1", sdy)
