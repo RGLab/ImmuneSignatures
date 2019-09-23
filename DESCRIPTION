@@ -9,7 +9,7 @@ License: What license is it under?
 Encoding: UTF-8
 LazyData: true
 biocViews: Visualization
-Depends: ImmuneSpaceR,
+Depends: ImmuneSpaceR (>= 1.13.2),
     data.table
 Imports: Rlabkey,
     dplyr (>= 0.7.1),
