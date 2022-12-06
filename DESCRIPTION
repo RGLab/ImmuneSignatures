@@ -1,17 +1,19 @@
 Package: ImmuneSignatures
 Type: Package
 Title: Streamlined package to demonstrate HIPC ImmuneSigatures work using ImmuneSpace Data
-Version: 0.1.0
-Author: HIPC ImmuneSignatures collaborators
-Maintainer: Evan Henrich <ehenrich@fredhutch.org>
-Description: Package outputs report with data and figures from HIPC ImmuneSignatures Project
-License: What license is it under?
+Version: 0.1.1
+Author: HIPC ImmuneSignatures Collaborators
+Maintainer: ImmuneSpace Package Maintainer <immunespace@gmail.com>
+Description: Package outputs report with data and figures from HIPC ImmuneSignatures Project.
+License: GPL-2
 Encoding: UTF-8
 LazyData: true
 biocViews: Visualization
-Depends: ImmuneSpaceR (>= 1.13.2),
+Depends:
+    ImmuneSpaceR (>= 1.13.2),
     data.table
-Imports: Rlabkey,
+Imports:
+    Rlabkey,
     dplyr (>= 0.7.1),
     stringr,
     hash,
@@ -28,6 +30,8 @@ Imports: Rlabkey,
     png,
     metaplot,
     ggplot2
-Suggests: knitr, rmarkdown
+Suggests:
+    knitr,
+    rmarkdown
 VignetteBuilder: knitr
 RoxygenNote: 6.0.1

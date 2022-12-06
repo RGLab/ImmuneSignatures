@@ -2,7 +2,6 @@
 # January 2017
 # Fred Hutchinson Cancer Research Center
 # Gottardo Lab
-# ehenrich@fredhutch.org
 
 #--------GEN NOTES-------------------------------------------------------
 # This script selects the highest gene expression probe within a set of probes

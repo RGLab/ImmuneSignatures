@@ -2,7 +2,6 @@
 # January 2017
 # Fred Hutchinson Cancer Research Center
 # Gottardo Lab
-# ehenrich@fredhutch.org
 
 # PURPOSE: generate HAI tables for downstream HIPC Gene Module Analysis using raw data from Immunespace
 

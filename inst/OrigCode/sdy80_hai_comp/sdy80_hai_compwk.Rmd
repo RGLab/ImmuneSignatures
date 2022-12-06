@@ -1,7 +1,6 @@
 ---
 title: "Comparing SDY80 HAI data between ImmuneSpace and Raw CHI"
 authors: "Evan Henrich"
-contact: "ehenrich@fredhutch.org"
 date: "`r Sys.Date()`"
 output: rmarkdown::html_document
 ---
